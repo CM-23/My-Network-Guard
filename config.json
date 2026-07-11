@@ -1,0 +1,50 @@
+{
+  "interface": "",
+  "simulation_mode": true,
+  "webhook_url": "https://discord.com/api/webhooks/1234567890/abcde_fghij",
+  "appliance_macs": [
+    "00:1a:2b:3c:4d:5e",
+    "aa:bb:cc:dd:ee:ff"
+  ],
+  "local_networks": [
+    "192.168.",
+    "10.",
+    "172.16.",
+    "172.17.",
+    "172.18.",
+    "172.19.",
+    "172.20.",
+    "172.21.",
+    "172.22.",
+    "172.23.",
+    "172.24.",
+    "172.25.",
+    "172.26.",
+    "172.27.",
+    "172.28.",
+    "172.29.",
+    "172.30.",
+    "172.31."
+  ],
+  "out_of_hours_start": "01:00",
+  "out_of_hours_end": "05:00",
+  "out_of_hours_packet_limit": 50,
+  "dns_entropy_threshold": 4.5,
+  "dns_length_threshold": 60,
+  "purge_interval_hours": 24,
+  "traffic_retention_days": 7,
+  "root_user": {
+    "name": "Chinmay",
+    "phone": "+919024309927"
+  },
+  "twilio": {
+    "account_sid": "",
+    "auth_token": "",
+    "from_number": "",
+    "use_whatsapp": true
+  },
+  "telegram": {
+    "bot_token": "",
+    "chat_id": ""
+  }
+}

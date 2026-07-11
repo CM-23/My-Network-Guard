@@ -1,0 +1,5 @@
+scapy==2.5.0
+flask==2.3.2
+requests==2.31.0
+twilio==9.10.9
+python-dotenv==1.0.1

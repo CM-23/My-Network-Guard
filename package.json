@@ -1,0 +1,21 @@
+{
+  "name": "network-scanner",
+  "version": "1.0.0",
+  "description": "Network Scanner — Your devices guard",
+  "main": "main.py",
+  "scripts": {
+    "dev": "python main.py",
+    "start": "python main.py",
+    "test": "python -m unittest tests/test_heuristics.py"
+  },
+  "keywords": [
+    "network-scanner",
+    "security",
+    "scapy",
+    "flask",
+    "arp",
+    "device-discovery"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}

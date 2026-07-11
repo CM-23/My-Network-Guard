@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Scanner — Your devices guard</title>
+    <meta name="description" content="Network Scanner: Monitor, protect, and manage all devices on your home or office network in real-time.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SCREEN 1: WiFi Setup Wizard
+══════════════════════════════════════ -->
+<div id="screen-setup" class="screen active">
+    <div class="setup-bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="setup-card">
+        <!-- Logo -->
+        <div class="setup-logo">
+            <div class="logo-shield">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <h1 class="setup-title">Network Scanner</h1>
+                <p class="setup-tagline">Your devices guard</p>
+            </div>
+        </div>
+
+        <!-- Connection success banner (hidden by default) -->
+        <div id="connection-success-banner" class="connection-banner hidden">
+            <i class="fa-solid fa-circle-check"></i>
+            <span id="connection-success-text">Router connected!</span>
+        </div>
+
+        <!-- Connection form -->
+        <div id="setup-form-area">
+            <p class="setup-description">Connect to your WiFi router to start scanning and protecting all devices on your network.</p>
+
+            <!-- Current network info if already connected -->
+            <div id="already-connected-area" class="hidden">
+                <div class="already-connected-card">
+                    <i class="fa-solid fa-wifi"></i>
+                    <div>
+                        <p class="already-label">Currently connected to</p>
+                        <strong id="current-ssid-label">—</strong>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="showNetworkForm()">
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i> Switch
+                    </button>
+                </div>
+                <button class="btn btn-primary btn-lg btn-block" id="btn-go-dashboard" onclick="enterDashboard()">
+                    <i class="fa-solid fa-arrow-right"></i> Open Dashboard
+                </button>
+            </div>
+
+            <!-- WiFi connection form -->
+            <div id="network-form" class="">
+                <div class="form-group">
+                    <label class="form-label" for="inp-ssid">
+                        <i class="fa-solid fa-wifi"></i> WiFi Network Name (SSID)
+                    </label>
+                    <div class="input-row">
+                        <input type="text" id="inp-ssid" class="text-input" placeholder="e.g. MyHomeWiFi" autocomplete="off">
+                        <button class="btn btn-outline btn-icon" id="btn-refresh-networks" onclick="loadNetworkList()" title="Scan for networks">
+                            <i class="fa-solid fa-rotate"></i>
+                        </button>
+                    </div>
+                    <!-- Dropdown of visible networks -->
+                    <div id="network-dropdown" class="network-dropdown hidden"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="inp-password">
+                        <i class="fa-solid fa-lock"></i> WiFi Password
+                    </label>
+                    <div class="input-row">
+                        <input type="password" id="inp-password" class="text-input" placeholder="Enter password..." autocomplete="current-password">
+                        <button class="btn btn-outline btn-icon" onclick="togglePasswordVisibility()" title="Show/hide password">
+                            <i class="fa-solid fa-eye" id="icon-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-lg btn-block" id="btn-connect" onclick="connectToWifi()">
+                    <span id="btn-connect-text"><i class="fa-solid fa-plug"></i> Connect & Scan</span>
+                    <span id="btn-connect-loading" class="hidden"><i class="fa-solid fa-circle-notch fa-spin"></i> Connecting...</span>
+                </button>
+            </div>
+
+            <p class="setup-note">
+                <i class="fa-solid fa-circle-info"></i>
+                Credentials are used only to connect to your local router. Nothing is sent to external servers.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SCREEN 2: Main Dashboard
+══════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+
+    <!-- Top Navigation Bar -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <div class="topbar-logo">
+                <i class="fa-solid fa-shield-halved"></i>
+                <div>
+                    <span class="topbar-title">Network Scanner</span>
+                    <span class="topbar-tagline">Your devices guard</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="topbar-center">
+            <div class="network-pill" id="topbar-network-pill">
+                <span class="wifi-dot"></span>
+                <span id="topbar-ssid">Detecting...</span>
+                <span class="pipe">|</span>
+                <span id="topbar-gateway">—</span>
+            </div>
+        </div>
+
+        <div class="topbar-right">
+            <button class="icon-btn" onclick="triggerScan()" title="Scan network now" id="btn-scan-now">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+            <button class="icon-btn" onclick="showAlertsPanel()" title="Alerts" id="btn-alerts-icon">
+                <i class="fa-solid fa-bell"></i>
+                <span id="alert-dot" class="alert-dot hidden"></span>
+            </button>
+            <button class="icon-btn" onclick="showSettingsPanel()" title="Settings">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            <button class="icon-btn" onclick="showRootUserSetup()" title="Admin profile" id="btn-admin">
+                <i class="fa-solid fa-user-shield"></i>
+                <span id="root-user-name-display" style="font-size:0.7rem;margin-left:2px;"></span>
+            </button>
+            <button class="icon-btn" onclick="goToSetup()" title="Switch network">
+                <i class="fa-solid fa-wifi"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <i class="fa-solid fa-laptop-code"></i>
+            <span><strong id="stat-devices">0</strong> devices</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span><strong id="stat-alerts">0</strong> active alerts</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+            <span><strong id="stat-flows">0</strong> traffic flows</span>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-microchip"></i>
+            <span><strong id="stat-mem">—</strong> MB memory</span>
+        </div>
+        <div class="stat-item" id="stat-elevation-badge">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span id="stat-elevation-text">—</span>
+        </div>
+    </div>
+
+    <!-- Dashboard Body -->
+    <div class="dashboard-body">
+
+        <!-- Device grid -->
+        <section class="devices-section">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fa-solid fa-network-wired"></i> Connected Devices</h2>
+                <div class="section-actions">
+                    <input type="text" id="device-filter" class="search-input" placeholder="Search devices..." oninput="renderDevices()">
+                    <button class="btn btn-primary btn-sm" onclick="triggerScan()" id="btn-refresh-devices">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div id="devices-grid" class="devices-grid">
+                <!-- Populated by JS -->
+                <div class="device-skeleton"></div>
+                <div class="device-skeleton"></div>
+                <div class="device-skeleton"></div>
+                <div class="device-skeleton"></div>
+            </div>
+
+            <!-- Pending Approval Section -->
+            <section id="pending-section" class="pending-section hidden">
+                <div class="section-header">
+                    <h2 class="section-title" style="color:var(--orange);">
+                        <i class="fa-solid fa-circle-question"></i>
+                        Pending Approval
+                        <span id="pending-count-badge" class="badge badge-orange" style="display:none;">0</span>
+                    </h2>
+                    <p style="font-size:0.8rem;color:var(--text-3);">New devices found on your network. Allow or block them.</p>
+                </div>
+                <div id="pending-list" class="pending-list"></div>
+            </section>
+        </section>
+
+        <!-- Right Sidebar Panels -->
+        <aside class="sidebar">
+
+            <!-- Alerts Panel -->
+            <div class="sidebar-panel" id="panel-alerts">
+                <div class="panel-title">
+                    <i class="fa-solid fa-bell"></i> Live Alerts
+                    <button class="btn-text" onclick="resolveAllAlerts()">Clear all</button>
+                </div>
+                <div class="panel-body">
+                    <label class="toggle-row">
+                        <input type="checkbox" id="chk-resolved" onchange="fetchAlerts()">
+                        Show resolved
+                    </label>
+                    <div id="alerts-list" class="alerts-list">
+                        <div class="empty-msg"><i class="fa-solid fa-shield-check"></i> No active alerts</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel (hidden by default) -->
+            <div class="sidebar-panel hidden" id="panel-settings">
+                <div class="panel-title">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </div>
+                <div class="panel-body">
+                    <!-- WhatsApp Agent -->
+                    <div class="setting-group">
+                        <label class="setting-label"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> WhatsApp Agent</label>
+                        <span id="agent-status-badge" class="badge badge-orange">Not Configured</span>
+                        <button class="btn btn-outline btn-sm btn-block" onclick="showAgentSettings()" style="margin-top:0.4rem;">
+                            <i class="fa-solid fa-key"></i> Configure API Keys
+                        </button>
+                        <button class="btn btn-ghost btn-sm btn-block" onclick="testAgentAlert()">
+                            <i class="fa-brands fa-whatsapp"></i> Send Test Message
+                        </button>
+                    </div>
+                    <hr class="divider">
+                    <!-- Telegram Bot Agent -->
+                    <div class="setting-group">
+                        <label class="setting-label"><i class="fa-brands fa-telegram" style="color:#0088cc"></i> Telegram Bot Agent</label>
+                        <span id="telegram-status-badge" class="badge badge-orange">Not Configured</span>
+                        <button class="btn btn-outline btn-sm btn-block" onclick="showTelegramSettings()" style="margin-top:0.4rem;">
+                            <i class="fa-solid fa-key"></i> Configure Telegram Bot
+                        </button>
+                        <button class="btn btn-ghost btn-sm btn-block" onclick="testTelegramAlert()">
+                            <i class="fa-brands fa-telegram"></i> Send Test Message
+                        </button>
+                    </div>
+                    <hr class="divider">
+                    <!-- Discord Webhook -->
+                    <div class="setting-group">
+                        <label class="setting-label">Discord Webhook</label>
+                        <input type="text" id="webhook-url-input" class="text-input text-input-sm" placeholder="https://discord.com/api/webhooks/...">
+                        <div class="setting-actions">
+                            <button class="btn btn-primary btn-sm" onclick="saveWebhook()">Save</button>
+                            <button class="btn btn-outline btn-sm" onclick="testWebhook()">Test</button>
+                        </div>
+                    </div>
+                    <hr class="divider">
+                    <div class="setting-group">
+                        <label class="setting-label">Data Management</label>
+                        <button class="btn btn-danger btn-block" onclick="purgeOldLogs()">
+                            <i class="fa-solid fa-trash"></i> Purge old logs (&gt;7 days)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Device Rename Modal
+══════════════════════════════════════ -->
+<div id="rename-modal" class="modal-overlay hidden" onclick="closeRenameModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-pencil"></i> Name this device</h3>
+            <button class="modal-close" onclick="closeRenameModalBtn()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p id="rename-device-info" class="modal-device-info"></p>
+            <input type="text" id="rename-input" class="text-input" placeholder="e.g. Dad's iPhone, Smart TV...">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeRenameModalBtn()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitRename()"><i class="fa-solid fa-check"></i> Save Name</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Root User (Admin) Setup Modal
+══════════════════════════════════════ -->
+<div id="root-user-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeRootUserModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-user-shield"></i> Admin Profile</h3>
+            <button class="modal-close" onclick="closeRootUserModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:0.5rem;">
+                The admin receives WhatsApp alerts when new devices join the network.
+            </p>
+            <div class="form-group">
+                <label class="form-label"><i class="fa-solid fa-user"></i> Your Name</label>
+                <input type="text" id="inp-root-name" class="text-input" placeholder="e.g. Chinmay">
+            </div>
+            <div class="form-group" style="margin-top:0.75rem;">
+                <label class="form-label"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> WhatsApp Number</label>
+                <input type="tel" id="inp-root-phone" class="text-input" placeholder="+91XXXXXXXXXX (with country code)">
+                <p class="setup-note" style="margin-top:0.4rem;"><i class="fa-solid fa-circle-info"></i> Must be the same number you use for WhatsApp. Include country code.</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeRootUserModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveRootUser()"><i class="fa-solid fa-check"></i> Save Admin</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Agent (Twilio WhatsApp) Config Modal
+══════════════════════════════════════ -->
+<div id="agent-config-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAgentModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> Twilio WhatsApp API Keys</h3>
+            <button class="modal-close" onclick="closeAgentModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:0.75rem;">
+                Get these from <a href="https://console.twilio.com" target="_blank" style="color:var(--blue-400);">console.twilio.com</a>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Account SID</label>
+                <input type="text" id="inp-twilio-sid" class="text-input text-input-sm" placeholder="ACxxxxxxxxxxxxxxxx">
+            </div>
+            <div class="form-group" style="margin-top:0.6rem;">
+                <label class="form-label">Auth Token</label>
+                <input type="password" id="inp-twilio-token" class="text-input text-input-sm" placeholder="Leave blank to keep existing">
+            </div>
+            <div class="form-group" style="margin-top:0.6rem;">
+                <label class="form-label">From Number <span style="color:var(--text-3);font-weight:400;">(Sandbox: +14155238886)</span></label>
+                <input type="text" id="inp-twilio-from" class="text-input text-input-sm" placeholder="+14155238886">
+            </div>
+            <div class="modal-info-box">
+                <i class="fa-solid fa-circle-info"></i>
+                WhatsApp Sandbox users must first text <strong>join &lt;keyword&gt;</strong> to <strong>+1 415 523 8886</strong> on WhatsApp to opt in.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeAgentModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAgentConfig()"><i class="fa-solid fa-key"></i> Save Keys</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Agent (Telegram Bot) Config Modal
+══════════════════════════════════════ -->
+<div id="telegram-config-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeTelegramModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fa-brands fa-telegram" style="color:#0088cc"></i> Telegram Bot API Keys</h3>
+            <button class="modal-close" onclick="closeTelegramModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:0.75rem;">
+                Create a free bot on Telegram by messaging <a href="https://t.me/BotFather" target="_blank" style="color:var(--blue-400);">@BotFather</a>
+            </p>
+            <div class="form-group">
+                <label class="form-label">Bot Token</label>
+                <input type="text" id="inp-telegram-token" class="text-input text-input-sm" placeholder="123456789:ABCdefGhIJKlmNoPQRsT...">
+            </div>
+            <div class="form-group" style="margin-top:0.6rem;">
+                <label class="form-label">Your Chat ID</label>
+                <input type="text" id="inp-telegram-chat" class="text-input text-input-sm" placeholder="e.g. 987654321">
+                <p class="setup-note" style="margin-top:0.4rem;">
+                    <i class="fa-solid fa-circle-info"></i> Find your Chat ID by sending a message to <a href="https://t.me/userinfobot" target="_blank" style="color:var(--blue-400);">@userinfobot</a>
+                </p>
+            </div>
+            <div class="modal-info-box">
+                <i class="fa-solid fa-circle-info"></i>
+                You must send <strong>/start</strong> to your new Telegram bot first, or else it won't be allowed to alert you.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeTelegramModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTelegramConfig()"><i class="fa-solid fa-key"></i> Save Bot Config</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
