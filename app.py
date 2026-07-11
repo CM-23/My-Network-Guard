@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import mimetypes
 from datetime import datetime
 from flask import Flask, jsonify, render_template, request, Response
 
@@ -11,6 +12,10 @@ import wifi_manager
 import telegram_agent
 import blocker
 import agent_manager
+
+# Ensure correct MIME types on all hosting environments
+mimetypes.add_type('text/css', '.css')
+mimetypes.add_type('application/javascript', '.js')
 
 logger = logging.getLogger("App")
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
