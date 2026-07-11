@@ -94,7 +94,12 @@ def get_network_status():
     ssid = get_current_ssid()
     local_ip = get_local_ip()
     gateway = get_gateway_ip()
-    connected = ssid is not None and local_ip != "127.0.0.1"
+    
+    # Auto-detect connection: if we have a valid non-loopback IP, we are connected to a network!
+    connected = local_ip not in (None, "127.0.0.1", "0.0.0.0", "")
+    
+    if connected and not ssid:
+        ssid = "Active Network"
 
     return {
         "connected": connected,
