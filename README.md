@@ -1,4 +1,6 @@
-# Localized Traffic Anomaly Detector (NIDS)
+# My Network Guard 🛡️
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-brightgreen?style=for-the-badge)](https://my-network-guard.onrender.com)
 
 A lightweight, high-performance Network Intrusion Detection System (NIDS) built with Python, Scapy, and SQLite. It passively sniffs local network interfaces using Berkeley Packet Filters (BPF), aggregates flow logs, constructs hardware profiles, detects anomalous signatures, and dispatches real-time alerts (via Discord/Slack webhooks) and a local loopback Flask dashboard.
 
