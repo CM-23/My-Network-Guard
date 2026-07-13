@@ -11,20 +11,18 @@ OWASP Top 10 A10: SSRF
 
 from __future__ import annotations
 
-import re
 import ipaddress
+import re
 import socket
-from typing import Optional
 from urllib.parse import urlparse
 
 from common.constants import InputLimits
 from common.exceptions import (
-    ValidationError,
     InputTooLongError,
     InvalidFormatError,
     SSRFAttemptError,
+    ValidationError,
 )
-
 
 # ─── MAC Address ─────────────────────────────────────────────────────────────
 
@@ -46,6 +44,7 @@ def validate_mac(mac: str) -> str:
 
 # ─── IP Address ──────────────────────────────────────────────────────────────
 
+
 def validate_ip(ip: str) -> str:
     """
     Validate an IPv4 address string.
@@ -62,6 +61,7 @@ def validate_ip(ip: str) -> str:
 
 
 # ─── SSID ────────────────────────────────────────────────────────────────────
+
 
 def validate_ssid(ssid: str) -> str:
     """
@@ -93,6 +93,7 @@ def validate_password(password: str) -> str:
 
 
 # ─── Friendly Name / Display Name ────────────────────────────────────────────
+
 
 def validate_friendly_name(name: str) -> str:
     """
@@ -239,6 +240,7 @@ def is_safe_url(url: str) -> bool:
 
 # ─── Alert ID ────────────────────────────────────────────────────────────────
 
+
 def validate_alert_id(alert_id) -> int:
     """Validate an alert ID is a positive integer."""
     try:
@@ -252,9 +254,11 @@ def validate_alert_id(alert_id) -> int:
 
 # ─── Severity Filter ──────────────────────────────────────────────────────────
 
+
 def validate_severity(severity: str) -> str:
     """Validate a severity filter value."""
     from common.constants import Severity
+
     if not severity:
         return ""
     sev = severity.strip().upper()
@@ -264,6 +268,7 @@ def validate_severity(severity: str) -> str:
 
 
 # ─── Notes / Text Fields ──────────────────────────────────────────────────────
+
 
 def validate_notes(notes: str) -> str:
     """Validate and sanitise a free-text notes field."""

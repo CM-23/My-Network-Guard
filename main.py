@@ -1,24 +1,25 @@
-import os
-import sys
-import time
-import queue
 import argparse
-import logging
 import json
+import logging
+import os
+import queue
 import signal
+import sys
 import threading
+import time
 
 # ── Load .env FIRST (before any other imports use env vars) ──
 try:
     from dotenv import load_dotenv
+
     load_dotenv(dotenv_path=".env", override=False)  # override=False: real env vars (Render) take priority
 except ImportError:
     pass  # dotenv not installed — rely on OS environment variables
 
 import database
-import sniffer
 import evaluator
 import notifier
+import sniffer
 import telegram_agent
 from app import app, set_app_config
 
@@ -26,10 +27,7 @@ from app import app, set_app_config
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("nids.log", encoding="utf-8")
-    ]
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("nids.log", encoding="utf-8")],
 )
 logger = logging.getLogger("Main")
 
@@ -41,19 +39,17 @@ _config = {}
 # Config
 # ─────────────────────────────────────────
 
+
 def load_config():
     global _config
     config_path = os.path.abspath("config.json")
     logger.info(f"Resolved config file path: {config_path}")
-    
+
     defaults = {
         "interface": "",
         "webhook_url": "",
         "root_user": {"name": "", "phone": ""},
-        "telegram": {
-            "bot_token": "",
-            "chat_id": ""
-        },
+        "telegram": {"bot_token": "", "chat_id": ""},
         "appliance_macs": [],
         "local_networks": ["192.168.", "10.", "172.16."],
         "out_of_hours_start": "01:00",
@@ -62,7 +58,7 @@ def load_config():
         "dns_entropy_threshold": 4.5,
         "dns_length_threshold": 60,
         "purge_interval_hours": 24,
-        "traffic_retention_days": 7
+        "traffic_retention_days": 7,
     }
 
     if os.path.exists("config.json"):
@@ -96,6 +92,7 @@ def load_config():
 
     return _config
 
+
 def _apply_env_overrides(config: dict):
     """Overlay .env / OS environment variables onto the loaded config dict."""
     env = os.environ
@@ -104,25 +101,33 @@ def _apply_env_overrides(config: dict):
 
     # Root user
     config.setdefault("root_user", {})
-    if env.get("ROOT_USER_NAME"):  config["root_user"]["name"]  = env["ROOT_USER_NAME"]
-    if env.get("ROOT_USER_PHONE"): config["root_user"]["phone"] = env["ROOT_USER_PHONE"]
+    if env.get("ROOT_USER_NAME"):
+        config["root_user"]["name"] = env["ROOT_USER_NAME"]
+    if env.get("ROOT_USER_PHONE"):
+        config["root_user"]["phone"] = env["ROOT_USER_PHONE"]
 
     # Telegram
     config.setdefault("telegram", {})
-    if env.get("TELEGRAM_BOT_TOKEN"): config["telegram"]["bot_token"] = env["TELEGRAM_BOT_TOKEN"]
-    if env.get("TELEGRAM_CHAT_ID"):   config["telegram"]["chat_id"]   = env["TELEGRAM_CHAT_ID"]
+    if env.get("TELEGRAM_BOT_TOKEN"):
+        config["telegram"]["bot_token"] = env["TELEGRAM_BOT_TOKEN"]
+    if env.get("TELEGRAM_CHAT_ID"):
+        config["telegram"]["chat_id"] = env["TELEGRAM_CHAT_ID"]
 
     # Misc
-    if env.get("WEBHOOK_URL"):           config["webhook_url"]           = env["WEBHOOK_URL"]
-    if env.get("NETWORK_INTERFACE"):     config["interface"]             = env["NETWORK_INTERFACE"]
+    if env.get("WEBHOOK_URL"):
+        config["webhook_url"] = env["WEBHOOK_URL"]
+    if env.get("NETWORK_INTERFACE"):
+        config["interface"] = env["NETWORK_INTERFACE"]
     if env.get("TRAFFIC_RETENTION_DAYS"):
         config["traffic_retention_days"] = int(env["TRAFFIC_RETENTION_DAYS"])
     if env.get("PURGE_INTERVAL_HOURS"):
-        config["purge_interval_hours"]   = int(env["PURGE_INTERVAL_HOURS"])
+        config["purge_interval_hours"] = int(env["PURGE_INTERVAL_HOURS"])
+
 
 # ─────────────────────────────────────────
 # Background Workers
 # ─────────────────────────────────────────
+
 
 def purge_worker_loop():
     logger.info("Auto-purge loop started.")
@@ -137,17 +142,18 @@ def purge_worker_loop():
             break
         try:
             database.execute_write_async(
-                "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)",
-                (f"-{days} days",)
+                "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)", (f"-{days} days",)
             )
             logger.info("Scheduled log purge complete.")
         except Exception as e:
             logger.error(f"Purge error: {e}")
     logger.info("Auto-purge loop stopped.")
 
+
 # ─────────────────────────────────────────
 # Shutdown
 # ─────────────────────────────────────────
+
 
 def shutdown_system(signum=None, frame=None):
     if _shutdown_event.is_set():
@@ -165,9 +171,11 @@ def shutdown_system(signum=None, frame=None):
     if signum is not None:
         sys.exit(0)
 
+
 # ─────────────────────────────────────────
 # Main Entry Point
 # ─────────────────────────────────────────
+
 
 def main():
     global _purge_thread
@@ -186,7 +194,10 @@ def main():
     if not confirmed:
         if sys.stdin.isatty():
             try:
-                ans = input("⚠️ Do you confirm that you own or have administrative authorization to monitor this target network? (y/N): ")
+                ans = input(
+                    "⚠️ Do you confirm that you own or have administrative authorization "
+                    "to monitor this target network? (y/N): "
+                )
                 if ans.lower().strip() not in ("y", "yes"):
                     print("❌ Monitoring authorization not confirmed. Exiting.")
                     sys.exit(1)
@@ -194,7 +205,10 @@ def main():
                 print("❌ Non-interactive console detected but confirmation flag was not provided. Exiting.")
                 sys.exit(1)
         else:
-            print("❌ Non-interactive console detected. Please provide the --confirm-owner flag or set CONFIRM_OWNER=true to verify authorization. Exiting.")
+            print(
+                "❌ Non-interactive console detected. Please provide the --confirm-owner flag "
+                "or set CONFIRM_OWNER=true to verify authorization. Exiting."
+            )
             sys.exit(1)
 
     config = load_config()
@@ -219,7 +233,7 @@ def main():
     sniffer.start_sniffer(
         packet_queue=packet_queue,
         interface=config.get("interface"),
-        simulation_mode=(config.get("simulation_mode", False) or args.simulation)
+        simulation_mode=(config.get("simulation_mode", False) or args.simulation),
     )
 
     # Print startup diagnostics report (Npcap status, versions, interface, gateway, etc.)
@@ -245,6 +259,7 @@ def main():
         logger.error(f"Flask error: {e}")
     finally:
         shutdown_system()
+
 
 if __name__ == "__main__":
     main()

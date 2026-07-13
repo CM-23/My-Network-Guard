@@ -17,13 +17,14 @@ OWASP A04: Rate limiting prevents scan flooding.
 from __future__ import annotations
 
 import logging
+
 from flask import Blueprint, jsonify, request
 
 import database
 import sniffer
 from backend_api.middleware.auth_middleware import require_session_token
-from shared.validators import validate_friendly_name, validate_phone
 from common.exceptions import ValidationError
+from shared.validators import validate_friendly_name, validate_phone
 
 logger = logging.getLogger("API.Settings")
 
@@ -40,10 +41,12 @@ def set_packet_queue(q) -> None:
 
 # ─── Admin Profile ────────────────────────────────────────────────────────────
 
+
 @settings_bp.route("/api/root-user", methods=["GET"])
 @settings_bp.route("/api/v1/settings/root-user", methods=["GET"])
 def get_root_user():
     from shared.config import get_config
+
     return jsonify(get_config().root_user)
 
 
@@ -53,29 +56,34 @@ def get_root_user():
 def setup_root_user():
     try:
         from shared.config import get_config, save_config
-        data  = request.get_json(silent=True) or {}
-        name  = validate_friendly_name(data.get("name", ""))
+
+        data = request.get_json(silent=True) or {}
+        name = validate_friendly_name(data.get("name", ""))
         phone = validate_phone(data.get("phone", ""))
 
         cfg = get_config()
         cfg.root_user = {"name": name, "phone": phone}
         save_config(cfg)
 
-        return jsonify({
-            "success":   True,
-            "message":   "Admin profile updated.",
-            "root_user": cfg.root_user,
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": "Admin profile updated.",
+                "root_user": cfg.root_user,
+            }
+        )
     except ValidationError as e:
         return jsonify(e.to_dict()), e.http_status
 
 
 # ─── All Settings ─────────────────────────────────────────────────────────────
 
+
 @settings_bp.route("/api/v1/settings", methods=["GET"])
 def get_settings():
     """Return all non-secret settings for the settings panel UI."""
     from shared.config import get_config
+
     cfg = get_config()
     return jsonify(cfg.to_dict())
 
@@ -86,15 +94,21 @@ def update_settings():
     """Update one or more settings values."""
     try:
         from shared.config import get_config, save_config
+
         data = request.get_json(silent=True) or {}
-        cfg  = get_config()
+        cfg = get_config()
 
         allowed_keys = {
-            "out_of_hours_start", "out_of_hours_end",
-            "out_of_hours_packet_limit", "dns_entropy_threshold",
-            "dns_length_threshold", "purge_interval_hours",
-            "traffic_retention_days", "scan_interval_seconds",
-            "enable_threat_detection", "enable_fingerprinting",
+            "out_of_hours_start",
+            "out_of_hours_end",
+            "out_of_hours_packet_limit",
+            "dns_entropy_threshold",
+            "dns_length_threshold",
+            "purge_interval_hours",
+            "traffic_retention_days",
+            "scan_interval_seconds",
+            "enable_threat_detection",
+            "enable_fingerprinting",
         }
 
         updated = []
@@ -112,6 +126,7 @@ def update_settings():
 
 
 # ─── Scan Trigger ─────────────────────────────────────────────────────────────
+
 
 @settings_bp.route("/api/scan/trigger", methods=["POST"])
 @settings_bp.route("/api/v1/scan/trigger", methods=["POST"])
@@ -133,22 +148,24 @@ def trigger_scan():
 
 # ─── Purge ────────────────────────────────────────────────────────────────────
 
+
 @settings_bp.route("/api/purge", methods=["POST"])
 @settings_bp.route("/api/v1/purge", methods=["POST"])
 @require_session_token
 def purge_logs():
     from shared.config import get_config
-    cfg  = get_config()
+
+    cfg = get_config()
     days = cfg.traffic_retention_days
-    res  = database.execute_write_sync(
-        "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)",
-        (f"-{days} days",)
+    res = database.execute_write_sync(
+        "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)", (f"-{days} days",)
     )
     count = res.get("rowcount", 0)
     return jsonify({"success": True, "message": f"Purged {count} old flow logs."})
 
 
 # ─── Legacy Stubs ────────────────────────────────────────────────────────────
+
 
 @settings_bp.route("/api/pending")
 def pending():
@@ -158,10 +175,12 @@ def pending():
 
 # ─── WiFi Routes (delegated from wifi_manager) ────────────────────────────────
 
+
 @settings_bp.route("/api/wifi/status")
 @settings_bp.route("/api/v1/wifi/status")
 def wifi_status():
     import wifi_manager
+
     return jsonify(wifi_manager.get_network_status())
 
 
@@ -169,6 +188,7 @@ def wifi_status():
 @settings_bp.route("/api/v1/wifi/networks")
 def wifi_networks():
     import wifi_manager
+
     return jsonify({"networks": wifi_manager.scan_networks()})
 
 
@@ -176,11 +196,13 @@ def wifi_networks():
 @settings_bp.route("/api/v1/wifi/connect", methods=["POST"])
 @require_session_token
 def wifi_connect():
-    from shared.validators import validate_ssid, validate_password
+    from shared.validators import validate_password, validate_ssid
+
     try:
         import wifi_manager
-        data     = request.get_json(silent=True) or {}
-        ssid     = validate_ssid(data.get("ssid", ""))
+
+        data = request.get_json(silent=True) or {}
+        ssid = validate_ssid(data.get("ssid", ""))
         password = validate_password(data.get("password", ""))
 
         result = wifi_manager.connect_to_wifi(ssid, password)

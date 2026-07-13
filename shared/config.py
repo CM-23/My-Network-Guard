@@ -14,11 +14,11 @@ OWASP ASVS V14.2: Dependency/configuration review.
 
 from __future__ import annotations
 
-import os
 import json
 import logging
-from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Any
+import os
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Config")
 
@@ -28,7 +28,7 @@ _CONFIG_FILE = "config.json"
 @dataclass
 class TelegramConfig:
     bot_token: str = ""
-    chat_id:   str = ""
+    chat_id: str = ""
 
 
 @dataclass
@@ -39,43 +39,43 @@ class AppConfig:
     """
 
     # ── Network ──────────────────────────────────────────────────────────
-    interface:                str             = ""
-    local_networks:           List[str]       = field(default_factory=lambda: ["192.168.", "10.", "172.16."])
+    interface: str = ""
+    local_networks: List[str] = field(default_factory=lambda: ["192.168.", "10.", "172.16."])
 
     # ── Notifications ────────────────────────────────────────────────────
-    webhook_url:              str             = ""
-    telegram:                 TelegramConfig  = field(default_factory=TelegramConfig)
+    webhook_url: str = ""
+    telegram: TelegramConfig = field(default_factory=TelegramConfig)
 
     # ── User ─────────────────────────────────────────────────────────────
-    root_user:                Dict[str, str]  = field(default_factory=lambda: {"name": "", "phone": ""})
+    root_user: Dict[str, str] = field(default_factory=lambda: {"name": "", "phone": ""})
 
     # ── Threat Detection Tuning ───────────────────────────────────────────
-    appliance_macs:           List[str]       = field(default_factory=list)
-    out_of_hours_start:       str             = "01:00"
-    out_of_hours_end:         str             = "05:00"
-    out_of_hours_packet_limit: int            = 50
-    dns_entropy_threshold:    float           = 4.5
-    dns_length_threshold:     int             = 60
+    appliance_macs: List[str] = field(default_factory=list)
+    out_of_hours_start: str = "01:00"
+    out_of_hours_end: str = "05:00"
+    out_of_hours_packet_limit: int = 50
+    dns_entropy_threshold: float = 4.5
+    dns_length_threshold: int = 60
 
     # ── Data Retention ───────────────────────────────────────────────────
-    purge_interval_hours:     int             = 24
-    traffic_retention_days:   int             = 7
+    purge_interval_hours: int = 24
+    traffic_retention_days: int = 7
 
     # ── Scanner ──────────────────────────────────────────────────────────
-    simulation_mode:          bool            = False
-    scan_interval_seconds:    int             = 30
+    simulation_mode: bool = False
+    scan_interval_seconds: int = 30
 
     # ── Server ───────────────────────────────────────────────────────────
-    port:                     int             = 5000
-    host:                     str             = "127.0.0.1"
+    port: int = 5000
+    host: str = "127.0.0.1"
 
     # ── Auth ─────────────────────────────────────────────────────────────
-    require_auth:             bool            = False
-    jwt_secret:               str             = ""      # Loaded from env; never from config.json
+    require_auth: bool = False
+    jwt_secret: str = ""  # Loaded from env; never from config.json
 
     # ── Feature Flags ────────────────────────────────────────────────────
-    enable_threat_detection:  bool            = True
-    enable_fingerprinting:    bool            = True
+    enable_threat_detection: bool = True
+    enable_fingerprinting: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -159,16 +159,20 @@ def update_config_field(key: str, value: Any) -> None:
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
+
 def _apply_json(cfg: AppConfig, raw: Dict[str, Any]) -> None:
     """Map JSON dict values onto the AppConfig dataclass."""
-    str_fields = ["interface", "webhook_url", "out_of_hours_start",
-                  "out_of_hours_end", "host"]
-    int_fields = ["out_of_hours_packet_limit", "dns_length_threshold",
-                  "purge_interval_hours", "traffic_retention_days",
-                  "scan_interval_seconds", "port"]
+    str_fields = ["interface", "webhook_url", "out_of_hours_start", "out_of_hours_end", "host"]
+    int_fields = [
+        "out_of_hours_packet_limit",
+        "dns_length_threshold",
+        "purge_interval_hours",
+        "traffic_retention_days",
+        "scan_interval_seconds",
+        "port",
+    ]
     float_fields = ["dns_entropy_threshold"]
-    bool_fields = ["simulation_mode", "require_auth",
-                   "enable_threat_detection", "enable_fingerprinting"]
+    bool_fields = ["simulation_mode", "require_auth", "enable_threat_detection", "enable_fingerprinting"]
     list_fields = ["appliance_macs", "local_networks"]
 
     for f in str_fields:
@@ -196,15 +200,15 @@ def _apply_json(cfg: AppConfig, raw: Dict[str, Any]) -> None:
     # Nested: root_user
     if "root_user" in raw and isinstance(raw["root_user"], dict):
         cfg.root_user = {
-            "name":  str(raw["root_user"].get("name", "")),
+            "name": str(raw["root_user"].get("name", "")),
             "phone": str(raw["root_user"].get("phone", "")),
         }
 
     # Nested: telegram
     if "telegram" in raw and isinstance(raw["telegram"], dict):
         cfg.telegram = TelegramConfig(
-            bot_token = str(raw["telegram"].get("bot_token", "")),
-            chat_id   = str(raw["telegram"].get("chat_id", "")),
+            bot_token=str(raw["telegram"].get("bot_token", "")),
+            chat_id=str(raw["telegram"].get("chat_id", "")),
         )
 
 

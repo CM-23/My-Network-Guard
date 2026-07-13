@@ -15,26 +15,25 @@ OWASP Top 10 A04: Insecure Design
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
-from flask import request, jsonify, Flask
-
+from flask import Flask, jsonify, request
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 _LIMITS: Dict[str, Tuple[int, int]] = {
     # route_pattern -> (max_requests, window_seconds)
-    "auth":    (5,  60),
-    "write":   (20, 60),
+    "auth": (5, 60),
+    "write": (20, 60),
     "default": (60, 60),
 }
 
 # ─── State ───────────────────────────────────────────────────────────────────
 
-_lock      = threading.Lock()
+_lock = threading.Lock()
 # key: (ip, route, window_start_min) -> count
 _counters: Dict[Tuple, List[float]] = defaultdict(list)
 
@@ -90,21 +89,23 @@ def apply_rate_limiting(app: Flask) -> None:
         if request.path.startswith("/static/"):
             return None
 
-        ip        = _get_client_ip()
-        tier      = _classify_request()
+        ip = _get_client_ip()
+        tier = _classify_request()
         max_req, window = _LIMITS.get(tier, _LIMITS["default"])
-        route     = request.endpoint or request.path
+        route = request.endpoint or request.path
 
         if not _check_rate_limit(ip, route, max_req, window):
             retry_after = window
-            response = jsonify({
-                "success": False,
-                "error":   "RATE_LIMIT_EXCEEDED",
-                "message": f"Too many requests. Limit: {max_req} per {window}s.",
-            })
+            response = jsonify(
+                {
+                    "success": False,
+                    "error": "RATE_LIMIT_EXCEEDED",
+                    "message": f"Too many requests. Limit: {max_req} per {window}s.",
+                }
+            )
             response.status_code = 429
-            response.headers["Retry-After"]        = str(retry_after)
-            response.headers["X-RateLimit-Limit"]  = str(max_req)
+            response.headers["Retry-After"] = str(retry_after)
+            response.headers["X-RateLimit-Limit"] = str(max_req)
             response.headers["X-RateLimit-Window"] = str(window)
             return response
 
@@ -118,7 +119,6 @@ def cleanup_old_counters() -> None:
     """
     cutoff = time.time() - 120  # 2 minute window
     with _lock:
-        stale = [k for k, ts_list in _counters.items()
-                 if not ts_list or max(ts_list) < cutoff]
+        stale = [k for k, ts_list in _counters.items() if not ts_list or max(ts_list) < cutoff]
         for k in stale:
             del _counters[k]

@@ -13,20 +13,20 @@ OWASP ASVS V7.2: Logs all security-relevant alerts with sufficient context.
 
 from __future__ import annotations
 
-import logging
-import queue
-import threading
-import socket
 import concurrent.futures
+import queue
+import socket
+import threading
 from datetime import datetime
+from typing import Optional
 
 import database
 import notifier
 from common.logging_config import get_logger
-from shared.models import PacketPayload, Device, Alert
 from scanner_agent.fingerprint import fingerprint_device
 from scanner_agent.oui_table import resolve_mac_vendor
 from scanner_agent.threat_detector import ThreatDetector
+from shared.models import PacketPayload
 
 logger = get_logger("Evaluator")
 
@@ -34,7 +34,7 @@ logger = get_logger("Evaluator")
 
 _evaluator_thread: Optional[threading.Thread] = None
 _shutdown_event = threading.Event()
-_resolver_pool  = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix="DNSResolver")
+_resolver_pool = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix="DNSResolver")
 
 # Config parameters
 _config: dict = {}
@@ -43,21 +43,26 @@ _threat_detector: Optional[ThreatDetector] = None
 
 # ─── Helper wrappers (backward compatibility for test_heuristics.py) ──────────
 
+
 def calculate_entropy(s: str) -> float:
     from scanner_agent.threat_detector import _shannon_entropy
+
     return _shannon_entropy(s)
 
 
 def is_local_ip(ip: str) -> bool:
     from scanner_agent.threat_detector import _is_local_ip
+
     prefixes = _config.get("local_networks", ["192.168.", "10.", "172.16."])
     return _is_local_ip(ip, prefixes)
 
 
 # ─── Hostname Resolution ──────────────────────────────────────────────────────
 
+
 def resolve_hostname_async(mac_address: str, ip: str) -> None:
     """Resolve a hostname asynchronously in a thread pool to avoid blocking the main evaluator loop."""
+
     def lookup():
         try:
             socket.setdefaulttimeout(1.0)
@@ -68,14 +73,13 @@ def resolve_hostname_async(mac_address: str, ip: str) -> None:
             hostname = f"Device-{suffix}"
 
         logger.info(f"Resolved hostname for {ip} / {mac_address} -> {hostname}")
-        database.execute_write_async(
-            "UPDATE devices SET hostname = ? WHERE mac_address = ?",
-            (hostname, mac_address)
-        )
+        database.execute_write_async("UPDATE devices SET hostname = ? WHERE mac_address = ?", (hostname, mac_address))
+
     _resolver_pool.submit(lookup)
 
 
 # ─── Evaluator Lifecycle ──────────────────────────────────────────────────────
+
 
 def start_evaluator(packet_queue: queue.Queue, config: dict) -> None:
     """Start the background packet evaluation thread."""
@@ -85,10 +89,7 @@ def start_evaluator(packet_queue: queue.Queue, config: dict) -> None:
     _shutdown_event.clear()
 
     _evaluator_thread = threading.Thread(
-        target=_evaluator_worker,
-        args=(packet_queue,),
-        name="EvaluatorThread",
-        daemon=True
+        target=_evaluator_worker, args=(packet_queue,), name="EvaluatorThread", daemon=True
     )
     _evaluator_thread.start()
     logger.info("Evaluator worker thread started.")
@@ -106,9 +107,9 @@ def stop_evaluator() -> None:
 
 # ─── Evaluator Worker ──────────────────────────────────────────────────────────
 
+
 def _evaluator_worker(packet_queue: queue.Queue) -> None:
     """Loop pulling packet payloads from queue and evaluating heuristics."""
-    global _threat_detector
     last_cleanup_time = datetime.now()
 
     while not _shutdown_event.is_set():
@@ -130,19 +131,19 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
             if isinstance(raw_payload, dict):
                 # Construct models.PacketPayload from dict
                 payload = PacketPayload(
-                    timestamp    = raw_payload.get("timestamp"),
-                    src_mac      = raw_payload.get("src_mac"),
-                    dst_mac      = raw_payload.get("dst_mac"),
-                    src_ip       = raw_payload.get("src_ip"),
-                    dst_ip       = raw_payload.get("dst_ip"),
-                    src_port     = raw_payload.get("src_port"),
-                    dst_port     = raw_payload.get("dst_port"),
-                    protocol     = raw_payload.get("protocol"),
-                    ttl          = raw_payload.get("ttl"),
-                    dns_query    = raw_payload.get("dns_query"),
-                    dhcp_options = raw_payload.get("dhcp_options"),
-                    mdns_info    = raw_payload.get("mdns_info"),
-                    ssdp_info    = raw_payload.get("ssdp_info"),
+                    timestamp=raw_payload.get("timestamp"),
+                    src_mac=raw_payload.get("src_mac"),
+                    dst_mac=raw_payload.get("dst_mac"),
+                    src_ip=raw_payload.get("src_ip"),
+                    dst_ip=raw_payload.get("dst_ip"),
+                    src_port=raw_payload.get("src_port"),
+                    dst_port=raw_payload.get("dst_port"),
+                    protocol=raw_payload.get("protocol"),
+                    ttl=raw_payload.get("ttl"),
+                    dns_query=raw_payload.get("dns_query"),
+                    dhcp_options=raw_payload.get("dhcp_options"),
+                    mdns_info=raw_payload.get("mdns_info"),
+                    ssdp_info=raw_payload.get("ssdp_info"),
                 )
                 resolved_hostname = raw_payload.get("hostname")
             elif isinstance(raw_payload, PacketPayload):
@@ -152,9 +153,9 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 packet_queue.task_done()
                 continue
 
-            src_mac  = payload.src_mac
-            src_ip   = payload.src_ip
-            dst_ip   = payload.dst_ip
+            src_mac = payload.src_mac
+            src_ip = payload.src_ip
+            dst_ip = payload.dst_ip
             dst_port = payload.dst_port or 0
             protocol = payload.protocol or ""
             timestamp = payload.timestamp
@@ -164,21 +165,19 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 continue
 
             # ── 1. Device Discovery & Tracking ────────────────────────────────
-            device_record = database.execute_read(
-                "SELECT mac_address FROM devices WHERE mac_address = ?", (src_mac,)
-            )
+            device_record = database.execute_read("SELECT mac_address FROM devices WHERE mac_address = ?", (src_mac,))
             vendor = resolve_mac_vendor(src_mac)
 
             # Resolve fingerprint details
             fingerprint = fingerprint_device(
-                mac          = src_mac,
-                hostname     = resolved_hostname,
-                ip           = src_ip,
-                protocol     = protocol,
-                ttl          = payload.ttl,
-                dhcp_options = payload.dhcp_options,
-                mdns_info    = payload.mdns_info,
-                ssdp_info    = payload.ssdp_info
+                mac=src_mac,
+                hostname=resolved_hostname,
+                ip=src_ip,
+                protocol=protocol,
+                ttl=payload.ttl,
+                dhcp_options=payload.dhcp_options,
+                mdns_info=payload.mdns_info,
+                ssdp_info=payload.ssdp_info,
             )
 
             if not device_record:
@@ -191,17 +190,23 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                         is_online, operating_system, confidence_score, first_seen, last_seen
                     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)""",
                     (
-                        src_mac, src_ip, initial_hostname, fingerprint.device_type,
-                        vendor, fingerprint.operating_system, fingerprint.confidence,
-                        timestamp, timestamp
-                    )
+                        src_mac,
+                        src_ip,
+                        initial_hostname,
+                        fingerprint.device_type,
+                        vendor,
+                        fingerprint.operating_system,
+                        fingerprint.confidence,
+                        timestamp,
+                        timestamp,
+                    ),
                 )
 
                 if not resolved_hostname and src_ip:
                     resolve_hostname_async(src_mac, src_ip)
 
                 # Record alert for new device
-                alert_type  = "NEW_DEVICE_ON_JOIN"
+                alert_type = "NEW_DEVICE_ON_JOIN"
                 description = (
                     f"New device discovered: MAC: {src_mac}, IP: {src_ip}, "
                     f"Name: {initial_hostname} ({fingerprint.device_type}), "
@@ -211,8 +216,9 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 severity = "MEDIUM"
 
                 database.execute_write_async(
-                    "INSERT INTO alerts (timestamp, alert_type, description, severity, is_resolved) VALUES (?, ?, ?, ?, 0)",
-                    (timestamp, alert_type, description, severity)
+                    "INSERT INTO alerts (timestamp, alert_type, description, severity, is_resolved) "
+                    "VALUES (?, ?, ?, ?, 0)",
+                    (timestamp, alert_type, description, severity),
                 )
                 notifier.queue_alert(alert_type, description, severity, timestamp)
                 logger.info(f"New device registered: MAC {src_mac} / IP {src_ip}")
@@ -226,10 +232,15 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                                               confidence_score = ?, is_online = 1
                            WHERE mac_address = ?""",
                         (
-                            src_ip, timestamp, resolved_hostname, vendor,
-                            fingerprint.device_type, fingerprint.operating_system,
-                            fingerprint.confidence, src_mac
-                        )
+                            src_ip,
+                            timestamp,
+                            resolved_hostname,
+                            vendor,
+                            fingerprint.device_type,
+                            fingerprint.operating_system,
+                            fingerprint.confidence,
+                            src_mac,
+                        ),
                     )
                 else:
                     database.execute_write_async(
@@ -238,9 +249,14 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                                               confidence_score = ?, is_online = 1
                            WHERE mac_address = ?""",
                         (
-                            src_ip, timestamp, vendor, fingerprint.device_type,
-                            fingerprint.operating_system, fingerprint.confidence, src_mac
-                        )
+                            src_ip,
+                            timestamp,
+                            vendor,
+                            fingerprint.device_type,
+                            fingerprint.operating_system,
+                            fingerprint.confidence,
+                            src_mac,
+                        ),
                     )
 
             # ── 2. Aggregated Traffic Logging ─────────────────────────────────
@@ -252,7 +268,7 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                     ON CONFLICT(source_ip, dest_ip, dest_port, protocol)
                     DO UPDATE SET packet_count = packet_count + 1, last_active = excluded.last_active
                     """,
-                    (src_ip, dst_ip, dst_port, protocol, timestamp)
+                    (src_ip, dst_ip, dst_port, protocol, timestamp),
                 )
 
             # ── 3. Stateful Threat Detection ──────────────────────────────────
@@ -266,10 +282,17 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                             evidence, affected_mac, mitre_attack, cwe_id, recommended_action, is_resolved
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
                         (
-                            ev.timestamp, ev.alert_type, ev.description, ev.severity,
-                            ev.confidence, str(ev.evidence), ev.affected_mac,
-                            ev.mitre_attack, ev.cwe_id, ev.recommended_action
-                        )
+                            ev.timestamp,
+                            ev.alert_type,
+                            ev.description,
+                            ev.severity,
+                            ev.confidence,
+                            str(ev.evidence),
+                            ev.affected_mac,
+                            ev.mitre_attack,
+                            ev.cwe_id,
+                            ev.recommended_action,
+                        ),
                     )
                     # Dispatch notifications
                     notifier.queue_alert(ev.alert_type, ev.description, ev.severity, ev.timestamp)

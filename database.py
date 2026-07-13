@@ -11,24 +11,24 @@ OWASP ASVS V3.5: Session management uses parameterized queries.
 OWASP A03: All queries use parameterized inputs; no string concatenation.
 """
 
-import os
-import sqlite3
-import queue
-import threading
 import logging
-from typing import List, Dict, Any, Optional
+import queue
+import sqlite3
+import threading
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Database")
 
 # ─── Module State ────────────────────────────────────────────────────────────
 
-_db_write_queue   = queue.Queue()
+_db_write_queue = queue.Queue()
 _db_worker_thread: Optional[threading.Thread] = None
-_db_path          = "nids.db"
-_shutdown_event   = threading.Event()
+_db_path = "nids.db"
+_shutdown_event = threading.Event()
 
 
 # ─── Schema Initialization ───────────────────────────────────────────────────
+
 
 def init_db(db_path: str = "nids.db") -> None:
     """
@@ -245,6 +245,7 @@ def _create_indexes(cur: sqlite3.Cursor) -> None:
 
 # ─── Write Worker ─────────────────────────────────────────────────────────────
 
+
 def db_worker() -> None:
     """
     Background thread that processes database write operations serially.
@@ -273,13 +274,13 @@ def db_worker() -> None:
                 cur.execute(query, params)
                 conn.commit()
                 res_holder["lastrowid"] = cur.lastrowid
-                res_holder["rowcount"]  = cur.rowcount
-                res_holder["success"]   = True
+                res_holder["rowcount"] = cur.rowcount
+                res_holder["success"] = True
             except Exception as ex:
                 conn.rollback()
                 logger.error(f"DB write error for query '{query[:80]}': {ex}")
                 res_holder["success"] = False
-                res_holder["error"]   = ex
+                res_holder["error"] = ex
             finally:
                 if res_event:
                     res_event.set()
@@ -300,9 +301,7 @@ def start_db_worker(db_path: str = "nids.db") -> None:
 
     init_db(_db_path)
 
-    _db_worker_thread = threading.Thread(
-        target=db_worker, name="DBWorkerThread", daemon=True
-    )
+    _db_worker_thread = threading.Thread(target=db_worker, name="DBWorkerThread", daemon=True)
     _db_worker_thread.start()
 
 
@@ -319,6 +318,7 @@ def stop_db_worker() -> None:
 
 # ─── Public API ──────────────────────────────────────────────────────────────
 
+
 def execute_write_async(query: str, params: tuple = ()) -> None:
     """
     Enqueue a write operation without blocking.
@@ -328,15 +328,13 @@ def execute_write_async(query: str, params: tuple = ()) -> None:
     _db_write_queue.put((query, params, None, res_holder))
 
 
-def execute_write_sync(
-    query: str, params: tuple = (), timeout: float = 5.0
-) -> Dict[str, Any]:
+def execute_write_sync(query: str, params: tuple = (), timeout: float = 5.0) -> Dict[str, Any]:
     """
     Enqueue a write and block until complete.
     Returns dict with 'lastrowid', 'rowcount', 'success'.
     Raises TimeoutError or the underlying exception on failure.
     """
-    res_event  = threading.Event()
+    res_event = threading.Event()
     res_holder: Dict[str, Any] = {}
     _db_write_queue.put((query, params, res_event, res_holder))
 
@@ -360,7 +358,7 @@ def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     try:
-        cur  = conn.cursor()
+        cur = conn.cursor()
         cur.execute(query, params)
         rows = cur.fetchall()
         return [dict(row) for row in rows]

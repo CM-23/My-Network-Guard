@@ -11,15 +11,15 @@ Tests verify accuracy of OS/device type detection across all 7 signal sources:
   7. Protocol hints
 """
 
-import sys
 import os
+import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from scanner_agent.fingerprint import fingerprint_device
-from scanner_agent.oui_table import resolve_mac_vendor
-from common.constants import DeviceType
+from common.constants import DeviceType  # noqa: E402
+from scanner_agent.fingerprint import fingerprint_device  # noqa: E402
+from scanner_agent.oui_table import resolve_mac_vendor  # noqa: E402
 
 
 class TestOUIVendorLookup(unittest.TestCase):
@@ -188,7 +188,7 @@ class TestConfidenceRanges(unittest.TestCase):
 
     def test_multi_signal_increases_confidence(self):
         hostname_only = fingerprint_device(hostname="iphone-alice")
-        multi_signal  = fingerprint_device(
+        multi_signal = fingerprint_device(
             mac="00:11:24:ab:cd:ef",
             hostname="iphone-alice",
             dhcp_options={"vendor_class_id": "iPhone OS-15"},

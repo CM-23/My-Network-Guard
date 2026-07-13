@@ -18,21 +18,20 @@ OWASP ASVS V4.1: Access Control
 
 from __future__ import annotations
 
-import os
-import secrets
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from typing import Optional, Callable, Any
+from typing import Any, Callable, Optional
 
-from flask import request, jsonify, session, Flask
+from flask import jsonify, request, session
 
 logger = logging.getLogger("Auth")
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 _REQUIRE_AUTH = False
-_JWT_SECRET   = ""
+_JWT_SECRET = ""
 
 # Revoked JTI set (in-memory — cleared on restart)
 _revoked_jtis: set[str] = set()
@@ -42,7 +41,7 @@ def configure_auth(require_auth: bool, jwt_secret: str) -> None:
     """Initialize auth module from app config."""
     global _REQUIRE_AUTH, _JWT_SECRET
     _REQUIRE_AUTH = require_auth
-    _JWT_SECRET   = jwt_secret or secrets.token_hex(32)
+    _JWT_SECRET = jwt_secret or secrets.token_hex(32)
     if require_auth:
         logger.info("JWT authentication ENABLED (REQUIRE_AUTH=true)")
     else:
@@ -56,6 +55,7 @@ def revoke_token(jti: str) -> None:
 
 # ─── Session Token CSRF (legacy/local mode) ──────────────────────────────────
 
+
 def require_session_token(f: Callable) -> Callable:
     """
     CSRF protection decorator using X-Session-Token header.
@@ -65,13 +65,14 @@ def require_session_token(f: Callable) -> Callable:
 
     OWASP ASVS V4.3.1: CSRF token verification
     """
+
     @wraps(f)
     def decorated(*args: Any, **kwargs: Any) -> Any:
         # If JWT auth is enabled, skip session token check
         if _REQUIRE_AUTH:
             return f(*args, **kwargs)
 
-        token    = request.headers.get("X-Session-Token", "")
+        token = request.headers.get("X-Session-Token", "")
         expected = session.get("session_token", "")
 
         if not expected or not token:
@@ -82,10 +83,12 @@ def require_session_token(f: Callable) -> Callable:
             return jsonify({"success": False, "message": "Unauthorized: invalid session token."}), 403
 
         return f(*args, **kwargs)
+
     return decorated
 
 
 # ─── JWT Auth (cloud/production mode) ────────────────────────────────────────
+
 
 def _decode_jwt(token: str) -> Optional[dict]:
     """
@@ -96,8 +99,8 @@ def _decode_jwt(token: str) -> Optional[dict]:
     """
     try:
         import base64
-        import hmac
         import hashlib
+        import hmac
         import json
 
         parts = token.split(".")
@@ -107,8 +110,8 @@ def _decode_jwt(token: str) -> Optional[dict]:
         header_b64, payload_b64, sig_b64 = parts
 
         # Verify signature
-        msg       = f"{header_b64}.{payload_b64}".encode()
-        secret    = _JWT_SECRET.encode()
+        msg = f"{header_b64}.{payload_b64}".encode()
+        secret = _JWT_SECRET.encode()
         expected_sig = hmac.new(secret, msg, hashlib.sha256).digest()
 
         # Decode signature from base64url
@@ -151,39 +154,39 @@ def _generate_jwt(
 ) -> str:
     """Generate a signed HS256 JWT token."""
     import base64
-    import hmac
     import hashlib
+    import hmac
     import json
     import uuid
 
     now = datetime.now(timezone.utc)
     payload = {
-        "sub":  user_id,
+        "sub": user_id,
         "role": role,
-        "iat":  int(now.timestamp()),
-        "exp":  int((now + timedelta(minutes=expires_minutes)).timestamp()),
-        "jti":  str(uuid.uuid4()),
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=expires_minutes)).timestamp()),
+        "jti": str(uuid.uuid4()),
     }
 
     def _b64url_encode(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
-    header  = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    header = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
     payload_enc = _b64url_encode(json.dumps(payload).encode())
-    msg     = f"{header}.{payload_enc}".encode()
-    sig     = hmac.new(_JWT_SECRET.encode(), msg, hashlib.sha256).digest()
+    msg = f"{header}.{payload_enc}".encode()
+    sig = hmac.new(_JWT_SECRET.encode(), msg, hashlib.sha256).digest()
     return f"{header}.{payload_enc}.{_b64url_encode(sig)}"
 
 
 def create_tokens(user_id: str, role: str) -> dict:
     """Create access + refresh token pair."""
-    access_token  = _generate_jwt(user_id, role, expires_minutes=60)
+    access_token = _generate_jwt(user_id, role, expires_minutes=60)
     refresh_token = _generate_jwt(user_id, role, expires_minutes=60 * 24 * 7)
     return {
-        "access_token":  access_token,
+        "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type":    "Bearer",
-        "expires_in":    3600,
+        "token_type": "Bearer",
+        "expires_in": 3600,
     }
 
 
@@ -196,6 +199,7 @@ def require_auth(roles: Optional[list] = None) -> Callable:
         @require_auth(roles=["admin", "analyst"])
         def my_route(): ...
     """
+
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def decorated(*args: Any, **kwargs: Any) -> Any:
@@ -207,7 +211,7 @@ def require_auth(roles: Optional[list] = None) -> Callable:
             if not auth_header.startswith("Bearer "):
                 return jsonify({"success": False, "message": "Authorization header missing or malformed."}), 401
 
-            token   = auth_header[7:]
+            token = auth_header[7:]
             payload = _decode_jwt(token)
 
             if not payload:
@@ -215,13 +219,20 @@ def require_auth(roles: Optional[list] = None) -> Callable:
 
             user_role = payload.get("role", "viewer")
             if roles and user_role not in roles:
-                return jsonify({
-                    "success": False,
-                    "message": f"Insufficient permissions. Required: {roles}. Your role: {user_role}",
-                }), 403
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Insufficient permissions. Required: {roles}. Your role: {user_role}",
+                        }
+                    ),
+                    403,
+                )
 
             # Inject user context into kwargs
             kwargs["_current_user"] = payload
             return f(*args, **kwargs)
+
         return decorated
+
     return decorator

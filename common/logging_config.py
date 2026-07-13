@@ -10,12 +10,11 @@ OWASP ASVS V7.1: Log sufficient information for incident response.
 OWASP ASVS V7.3: Protect log data from unauthorised modification.
 """
 
-import logging
-import sys
-import os
 import json
+import logging
+import os
+import sys
 import uuid
-import traceback
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -28,13 +27,13 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp":  datetime.now(timezone.utc).isoformat(),
-            "level":      record.levelname,
-            "logger":     record.name,
-            "message":    record.getMessage(),
-            "module":     record.module,
-            "function":   record.funcName,
-            "line":       record.lineno,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Attach exception info
@@ -45,11 +44,27 @@ class JSONFormatter(logging.Formatter):
         # Attach any extra fields
         for key, value in record.__dict__.items():
             if key.startswith("_") or key in (
-                "msg", "args", "levelname", "levelno", "pathname",
-                "filename", "module", "exc_info", "exc_text", "stack_info",
-                "lineno", "funcName", "created", "msecs", "relativeCreated",
-                "thread", "threadName", "processName", "process", "name",
-                "message"
+                "msg",
+                "args",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "name",
+                "message",
             ):
                 continue
             log_entry[key] = value
@@ -61,11 +76,11 @@ class HumanFormatter(logging.Formatter):
     """Human-readable formatter for development/local use."""
 
     COLORS = {
-        "DEBUG":    "\033[36m",   # Cyan
-        "INFO":     "\033[32m",   # Green
-        "WARNING":  "\033[33m",   # Yellow
-        "ERROR":    "\033[31m",   # Red
-        "CRITICAL": "\033[35m",   # Magenta
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
 
@@ -78,11 +93,7 @@ class HumanFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def configure_logging(
-    level: Optional[str] = None,
-    log_file: str = "nids.log",
-    use_json: bool = False
-) -> None:
+def configure_logging(level: Optional[str] = None, log_file: str = "nids.log", use_json: bool = False) -> None:
     """
     Configure application-wide logging.
 

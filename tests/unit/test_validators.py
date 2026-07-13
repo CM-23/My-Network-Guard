@@ -4,31 +4,30 @@ tests/unit/test_validators.py — Unit tests for shared input validators.
 Validates all edge cases, boundary conditions, and security-relevant inputs.
 """
 
-import sys
 import os
+import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from shared.validators import (
-    validate_mac,
-    validate_ip,
-    validate_ssid,
-    validate_password,
-    validate_friendly_name,
-    validate_phone,
-    validate_chat_id,
-    validate_bot_token,
-    validate_alert_id,
-    validate_severity,
-    validate_notes,
-    is_safe_url,
-)
-from common.exceptions import (
-    ValidationError,
+from common.exceptions import (  # noqa: E402
     InputTooLongError,
     InvalidFormatError,
-    SSRFAttemptError,
+    ValidationError,
+)
+from shared.validators import (  # noqa: E402
+    is_safe_url,
+    validate_alert_id,
+    validate_bot_token,
+    validate_chat_id,
+    validate_friendly_name,
+    validate_ip,
+    validate_mac,
+    validate_notes,
+    validate_password,
+    validate_phone,
+    validate_severity,
+    validate_ssid,
 )
 
 

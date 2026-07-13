@@ -1,9 +1,10 @@
-import sqlite3
-import os
 import logging
+import os
+import sqlite3
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s")
 logger = logging.getLogger("Migrator")
+
 
 def run_migration(db_path="nids.db"):
     if not os.path.exists(db_path):
@@ -16,18 +17,18 @@ def run_migration(db_path="nids.db"):
         # Enable WAL mode
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
-        
+
         cursor = conn.cursor()
-        
+
         # 1. Extend devices table
         migrations = [
             ("ALTER TABLE devices ADD COLUMN vendor TEXT DEFAULT 'Unknown';", "vendor column"),
             ("ALTER TABLE devices ADD COLUMN friendly_name TEXT;", "friendly_name column"),
             ("ALTER TABLE devices ADD COLUMN is_online INTEGER DEFAULT 1;", "is_online column"),
             ("ALTER TABLE devices ADD COLUMN operating_system TEXT DEFAULT 'Unknown';", "operating_system column"),
-            ("ALTER TABLE devices ADD COLUMN confidence_score INTEGER DEFAULT 0;", "confidence_score column")
+            ("ALTER TABLE devices ADD COLUMN confidence_score INTEGER DEFAULT 0;", "confidence_score column"),
         ]
-        
+
         for query, desc in migrations:
             try:
                 cursor.execute(query)
@@ -62,13 +63,14 @@ def run_migration(db_path="nids.db"):
 
         conn.commit()
         logger.info("Schema migration completed successfully.")
-        
+
     except Exception as e:
         conn.rollback()
         logger.error(f"Migration failed: {e}")
         raise e
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     run_migration()

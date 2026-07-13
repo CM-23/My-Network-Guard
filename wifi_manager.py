@@ -1,9 +1,9 @@
-import platform
-import subprocess
-import socket
-import re
 import logging
 import os
+import platform
+import re
+import socket
+import subprocess
 from xml.sax.saxutils import escape as _xml_escape
 
 logger = logging.getLogger("WiFiManager")
@@ -13,6 +13,7 @@ _OS = platform.system()  # 'Windows' or 'Linux' or 'Darwin'
 # ─────────────────────────────────────────
 # Network Info
 # ─────────────────────────────────────────
+
 
 def get_local_ip():
     """Returns the local machine IP address on the active interface."""
@@ -24,6 +25,7 @@ def get_local_ip():
         return ip
     except Exception:
         return "127.0.0.1"
+
 
 def get_gateway_ip():
     """Returns the default gateway/router IP address."""
@@ -53,6 +55,7 @@ def get_gateway_ip():
         logger.error(f"Error getting gateway IP: {e}")
     return None
 
+
 def has_subnet_mismatch():
     gw = get_gateway_ip()
     local = get_local_ip()
@@ -64,10 +67,14 @@ def has_subnet_mismatch():
         return gw_parts[:3] != local_parts[:3]
     return False
 
+
 def get_subnet():
     """Returns the /24 subnet string for the local interface (e.g. '192.168.1.0/24')."""
     if has_subnet_mismatch():
-        logger.warning("Detected local IP and gateway IP are on different subnets — scan results may be incomplete, check for an active VPN")
+        logger.warning(
+            "Detected local IP and gateway IP are on different subnets — "
+            "scan results may be incomplete, check for an active VPN"
+        )
     ip = get_local_ip()
     if ip and ip != "127.0.0.1":
         parts = ip.split(".")
@@ -75,13 +82,12 @@ def get_subnet():
             return f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
     return "192.168.1.0/24"
 
+
 def get_current_ssid():
     """Returns the SSID of the currently connected WiFi network."""
     try:
         if _OS == "Windows":
-            out = subprocess.check_output(
-                "netsh wlan show interfaces", shell=True
-            ).decode(errors="ignore")
+            out = subprocess.check_output("netsh wlan show interfaces", shell=True).decode(errors="ignore")
             for line in out.splitlines():
                 if "SSID" in line and "BSSID" not in line:
                     parts = line.split(":")
@@ -90,16 +96,14 @@ def get_current_ssid():
                         if ssid:
                             return ssid
         elif _OS == "Linux":
-            out = subprocess.check_output(
-                "nmcli -t -f active,ssid dev wifi", shell=True
-            ).decode(errors="ignore")
+            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi", shell=True).decode(errors="ignore")
             for line in out.splitlines():
                 if line.startswith("yes:"):
                     return line.split(":", 1)[1].strip()
         elif _OS == "Darwin":
             out = subprocess.check_output(
                 "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I",
-                shell=True
+                shell=True,
             ).decode(errors="ignore")
             for line in out.splitlines():
                 if " SSID:" in line:
@@ -108,15 +112,16 @@ def get_current_ssid():
         logger.warning(f"Could not get current SSID: {e}")
     return None
 
+
 def get_network_status():
     """Returns a complete status dict about the current network connection."""
     ssid = get_current_ssid()
     local_ip = get_local_ip()
     gateway = get_gateway_ip()
-    
+
     # Auto-detect connection: if we have a valid non-loopback IP, we are connected to a network!
     connected = local_ip not in (None, "127.0.0.1", "0.0.0.0", "")
-    
+
     if connected and not ssid:
         ssid = "Active Network"
 
@@ -126,31 +131,31 @@ def get_network_status():
         "local_ip": local_ip,
         "gateway_ip": gateway or "",
         "subnet": get_subnet(),
-        "platform": _OS
+        "platform": _OS,
     }
+
 
 # ─────────────────────────────────────────
 # WiFi Network Discovery
 # ─────────────────────────────────────────
+
 
 def scan_networks():
     """Returns a normalized list of visible WiFi networks: {ssid, signal_strength, security_type, bssid}."""
     networks = []
     try:
         if _OS == "Windows":
-            out = subprocess.check_output(
-                "netsh wlan show networks mode=bssid", shell=True
-            ).decode(errors="ignore")
+            out = subprocess.check_output("netsh wlan show networks mode=bssid", shell=True).decode(errors="ignore")
             networks = _parse_netsh_networks(out)
         elif _OS == "Linux":
-            out = subprocess.check_output(
-                "nmcli -t -f SSID,SIGNAL,SECURITY,BSSID dev wifi", shell=True
-            ).decode(errors="ignore")
+            out = subprocess.check_output("nmcli -t -f SSID,SIGNAL,SECURITY,BSSID dev wifi", shell=True).decode(
+                errors="ignore"
+            )
             networks = _parse_nmcli_networks(out)
         elif _OS == "Darwin":
             out = subprocess.check_output(
                 "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s",
-                shell=True
+                shell=True,
             ).decode(errors="ignore")
             networks = _parse_macos_airport(out)
     except Exception as e:
@@ -164,13 +169,15 @@ def scan_networks():
         if key not in seen:
             seen.add(key)
             unique_networks.append(net)
-            
+
     unique_networks.sort(key=lambda x: x.get("signal_strength", 0), reverse=True)
     return unique_networks
+
 
 def list_wifi_networks():
     """Returns a list of visible WiFi SSIDs (for backward compatibility)."""
     return list({net["ssid"] for net in scan_networks() if net["ssid"] and net["ssid"] != "Hidden Network"})
+
 
 def _parse_netsh_networks(output):
     networks = []
@@ -213,18 +220,21 @@ def _parse_netsh_networks(output):
                     signal = int(sig_str)
                 except ValueError:
                     signal = 0
-                
+
                 security = current_auth
                 if current_encrypt and current_encrypt != "None" and current_encrypt not in security:
                     security = f"{current_auth} ({current_encrypt})"
-                
-                networks.append({
-                    "ssid": current_ssid or "Hidden Network",
-                    "signal_strength": signal,
-                    "security_type": security,
-                    "bssid": current_bssid or ""
-                })
+
+                networks.append(
+                    {
+                        "ssid": current_ssid or "Hidden Network",
+                        "signal_strength": signal,
+                        "security_type": security,
+                        "bssid": current_bssid or "",
+                    }
+                )
     return networks
+
 
 def _parse_nmcli_networks(output):
     networks = []
@@ -239,36 +249,40 @@ def _parse_nmcli_networks(output):
             if escaped:
                 current.append(char)
                 escaped = False
-            elif char == '\\':
+            elif char == "\\":
                 escaped = True
-            elif char == ':':
+            elif char == ":":
                 parts.append("".join(current))
                 current = []
             else:
                 current.append(char)
         parts.append("".join(current))
-        
+
         if len(parts) >= 4:
             ssid = parts[0].strip()
             sig_str = parts[1].strip()
             security = parts[2].strip()
             bssid = parts[3].strip().lower()
-            
+
             try:
                 signal = int(sig_str)
             except ValueError:
                 signal = 0
-                
-            networks.append({
-                "ssid": ssid or "Hidden Network",
-                "signal_strength": signal,
-                "security_type": security or "Open",
-                "bssid": bssid
-            })
+
+            networks.append(
+                {
+                    "ssid": ssid or "Hidden Network",
+                    "signal_strength": signal,
+                    "security_type": security or "Open",
+                    "bssid": bssid,
+                }
+            )
     return networks
+
 
 def _parse_macos_airport(output):
     import re
+
     networks = []
     lines = output.splitlines()
     if len(lines) <= 1:
@@ -287,24 +301,29 @@ def _parse_macos_airport(output):
             if bssid_idx != -1:
                 ssid = " ".join(parts[:bssid_idx])
                 bssid = parts[bssid_idx].lower()
-                rssi_str = parts[bssid_idx+1]
+                rssi_str = parts[bssid_idx + 1]
                 try:
                     rssi = int(rssi_str)
                     signal = min(max(2 * (rssi + 100), 0), 100)
                 except ValueError:
                     signal = 0
-                security = " ".join(parts[bssid_idx+4:]) if len(parts) > bssid_idx+4 else "Open"
-                networks.append({
-                    "ssid": ssid or "Hidden Network",
-                    "signal_strength": signal,
-                    "security_type": security,
-                    "bssid": bssid
-                })
+                start_idx = bssid_idx + 4
+                security = " ".join(parts[start_idx:]) if len(parts) > start_idx else "Open"
+                networks.append(
+                    {
+                        "ssid": ssid or "Hidden Network",
+                        "signal_strength": signal,
+                        "security_type": security,
+                        "bssid": bssid,
+                    }
+                )
     return networks
+
 
 # ─────────────────────────────────────────
 # WiFi Connection
 # ─────────────────────────────────────────
+
 
 def connect_to_wifi(ssid, password):
     """
@@ -327,6 +346,7 @@ def connect_to_wifi(ssid, password):
         logger.error(f"WiFi connection error: {e}")
         return {"success": False, "status": "TIMEOUT", "message": str(e)}
 
+
 def _detect_security_type(ssid):
     """Looks up the security type of a given SSID from the last scan.
     Falls back to 'WPA2-Personal' if not found (safest common default)."""
@@ -338,6 +358,7 @@ def _detect_security_type(ssid):
         pass
     return "WPA2-Personal"
 
+
 def _security_to_profile_auth(security_type):
     """Maps a scanned security_type string to the Windows WLAN profile
     <authentication> value. Returns (authentication, encryption, is_open)."""
@@ -348,6 +369,7 @@ def _security_to_profile_auth(security_type):
         return "WPA2PSK", "AES", False
     # Open / no security detected
     return "open", "none", True
+
 
 def _connect_windows(ssid, password):
     """Connect to WiFi on Windows using netsh wlan."""
@@ -413,8 +435,7 @@ def _connect_windows(ssid, password):
 
         # Step 2: Add profile
         add_result = subprocess.run(
-            ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
-            capture_output=True, text=True, timeout=10
+            ["netsh", "wlan", "add", "profile", f"filename={profile_path}"], capture_output=True, text=True, timeout=10
         )
         if add_result.returncode != 0:
             logger.error(f"netsh add profile failed: {add_result.stdout} {add_result.stderr}")
@@ -422,17 +443,18 @@ def _connect_windows(ssid, password):
             # retry once as WPA2PSK, which most WPA3 routers also accept in transition mode.
             if auth == "WPA3SSE":
                 return _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profile_path)
-            return {"success": False, "status": "UNSUPPORTED_SECURITY",
-                    "message": f"Failed to add profile: {add_result.stderr.strip() or add_result.stdout.strip()}"}
+            return {
+                "success": False,
+                "status": "UNSUPPORTED_SECURITY",
+                "message": f"Failed to add profile: {add_result.stderr.strip() or add_result.stdout.strip()}",
+            }
 
         # Step 3: Connect
-        subprocess.run(
-            ["netsh", "wlan", "connect", f"name={ssid}"],
-            capture_output=True, text=True, timeout=15
-        )
+        subprocess.run(["netsh", "wlan", "connect", f"name={ssid}"], capture_output=True, text=True, timeout=15)
 
         # Wait up to 8 seconds and check connection
         import time
+
         for _ in range(8):
             time.sleep(1.0)
             status = get_network_status()
@@ -440,7 +462,11 @@ def _connect_windows(ssid, password):
                 return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
 
         # If not connected, assume wrong password or timeout
-        return {"success": False, "status": "WRONG_PASSWORD", "message": f"Could not connect to '{ssid}'. Check your password."}
+        return {
+            "success": False,
+            "status": "WRONG_PASSWORD",
+            "message": f"Could not connect to '{ssid}'. Check your password.",
+        }
 
     finally:
         try:
@@ -448,6 +474,7 @@ def _connect_windows(ssid, password):
                 os.remove(profile_path)
         except Exception:
             pass
+
 
 def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profile_path):
     """Retry as a standard WPA2PSK profile when WPA3SSE isn't supported by this Windows build."""
@@ -480,22 +507,32 @@ def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profi
         f.write(profile_xml)
 
     add_result = subprocess.run(
-        ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
-        capture_output=True, text=True, timeout=10
+        ["netsh", "wlan", "add", "profile", f"filename={profile_path}"], capture_output=True, text=True, timeout=10
     )
     if add_result.returncode != 0:
-        return {"success": False, "status": "UNSUPPORTED_SECURITY",
-                "message": f"Failed to add profile (WPA2 fallback): {add_result.stderr.strip() or add_result.stdout.strip()}"}
+        return {
+            "success": False,
+            "status": "UNSUPPORTED_SECURITY",
+            "message": (
+                f"Failed to add profile (WPA2 fallback): " f"{add_result.stderr.strip() or add_result.stdout.strip()}"
+            ),
+        }
 
     subprocess.run(["netsh", "wlan", "connect", f"name={ssid}"], capture_output=True, text=True, timeout=15)
 
     import time
+
     for _ in range(8):
         time.sleep(1.0)
         status = get_network_status()
         if status["connected"] and status["ssid"] == ssid:
             return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
-    return {"success": False, "status": "WRONG_PASSWORD", "message": f"Could not connect to '{ssid}'. Check your password."}
+    return {
+        "success": False,
+        "status": "WRONG_PASSWORD",
+        "message": f"Could not connect to '{ssid}'. Check your password.",
+    }
+
 
 def _connect_linux(ssid, password):
     """Connect to WiFi on Linux using nmcli."""
@@ -515,22 +552,28 @@ def _connect_linux(ssid, password):
     elif "timeout" in output:
         return {"success": False, "status": "TIMEOUT", "message": "Connection timed out."}
     else:
-        return {"success": False, "status": "UNSUPPORTED_SECURITY", "message": f"Connection failed: {result.stderr.strip()}"}
+        return {
+            "success": False,
+            "status": "UNSUPPORTED_SECURITY",
+            "message": f"Connection failed: {result.stderr.strip()}",
+        }
+
 
 def _connect_macos(ssid, password):
     """Connect to WiFi on macOS using networksetup."""
     result = subprocess.run(
-        ["networksetup", "-setairportnetwork", "en0", ssid, password],
-        capture_output=True, text=True, timeout=20
+        ["networksetup", "-setairportnetwork", "en0", ssid, password], capture_output=True, text=True, timeout=20
     )
     if result.returncode == 0:
         return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
     else:
         return {"success": False, "status": "WRONG_PASSWORD", "message": result.stderr.strip() or "Connection failed."}
 
+
 # ─────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────
+
 
 def _is_valid_ip(ip):
     """Basic check for a valid IPv4 address string."""

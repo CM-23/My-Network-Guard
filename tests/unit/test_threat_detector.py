@@ -8,16 +8,16 @@ Tests verify that each detection heuristic:
   4. Deduplicates correctly (does not re-alert the same incident repeatedly)
 """
 
-import sys
 import os
+import sys
 import unittest
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from scanner_agent.threat_detector import ThreatDetector
-from shared.models import PacketPayload
-from common.constants import AlertType, Severity, MitreAttack
+from common.constants import AlertType, MitreAttack, Severity  # noqa: E402
+from scanner_agent.threat_detector import ThreatDetector  # noqa: E402
+from shared.models import PacketPayload  # noqa: E402
 
 
 def _ts() -> str:
@@ -27,13 +27,13 @@ def _ts() -> str:
 def _pkt(**kwargs) -> PacketPayload:
     defaults = {
         "timestamp": _ts(),
-        "src_mac":   "aa:bb:cc:dd:ee:01",
-        "dst_mac":   "ff:ff:ff:ff:ff:ff",
-        "src_ip":    "192.168.1.100",
-        "dst_ip":    "8.8.8.8",
-        "src_port":  12345,
-        "dst_port":  443,
-        "protocol":  "TCP",
+        "src_mac": "aa:bb:cc:dd:ee:01",
+        "dst_mac": "ff:ff:ff:ff:ff:ff",
+        "src_ip": "192.168.1.100",
+        "dst_ip": "8.8.8.8",
+        "src_port": 12345,
+        "dst_port": 443,
+        "protocol": "TCP",
     }
     defaults.update(kwargs)
     return PacketPayload(**defaults)
@@ -42,16 +42,16 @@ def _pkt(**kwargs) -> PacketPayload:
 class TestARPSpoofingDetector(unittest.TestCase):
 
     def setUp(self):
-        self.detector = ThreatDetector({
-            "local_networks": ["192.168.", "10.", "172.16."],
-        })
+        self.detector = ThreatDetector(
+            {
+                "local_networks": ["192.168.", "10.", "172.16."],
+            }
+        )
 
     def test_detect_multiple_macs_same_ip(self):
         """Two different MACs claiming the same IP should trigger ARP Spoofing."""
-        p1 = _pkt(protocol="ARP", src_mac="aa:bb:cc:dd:ee:01",
-                  src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
-        p2 = _pkt(protocol="ARP", src_mac="11:22:33:44:55:66",
-                  src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
+        p1 = _pkt(protocol="ARP", src_mac="aa:bb:cc:dd:ee:01", src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
+        p2 = _pkt(protocol="ARP", src_mac="11:22:33:44:55:66", src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
 
         self.detector.process(p1)
         events = self.detector.process(p2)
@@ -113,10 +113,12 @@ class TestMACSpooifngDetector(unittest.TestCase):
 class TestDNSTunnelingDetector(unittest.TestCase):
 
     def setUp(self):
-        self.detector = ThreatDetector({
-            "dns_entropy_threshold": 4.5,
-            "dns_length_threshold":  60,
-        })
+        self.detector = ThreatDetector(
+            {
+                "dns_entropy_threshold": 4.5,
+                "dns_length_threshold": 60,
+            }
+        )
 
     def test_detect_high_entropy_domain(self):
         """High-entropy domain should trigger DNS tunneling alert."""
@@ -159,8 +161,9 @@ class TestPortScanDetector(unittest.TestCase):
         """16 unique destination ports from same source IP should trigger port scan."""
         events_all = []
         for port in range(20, 37):  # 17 ports
-            p = _pkt(protocol="TCP", src_ip="10.0.0.5", dst_ip="192.168.1.50",
-                     dst_port=port, src_mac="aa:bb:cc:dd:ee:02")
+            p = _pkt(
+                protocol="TCP", src_ip="10.0.0.5", dst_ip="192.168.1.50", dst_port=port, src_mac="aa:bb:cc:dd:ee:02"
+            )
             events_all.extend(self.detector.process(p))
 
         scan_events = [e for e in events_all if e.alert_type == AlertType.PORT_SCAN]
@@ -171,8 +174,7 @@ class TestPortScanDetector(unittest.TestCase):
         """Repeated traffic to same single port should not trigger port scan."""
         events_all = []
         for _ in range(20):
-            p = _pkt(protocol="TCP", src_ip="10.0.0.10", dst_ip="192.168.1.1",
-                     dst_port=443)
+            p = _pkt(protocol="TCP", src_ip="10.0.0.10", dst_ip="192.168.1.1", dst_port=443)
             events_all.extend(self.detector.process(p))
 
         scan_events = [e for e in events_all if e.alert_type == AlertType.PORT_SCAN]
@@ -186,10 +188,8 @@ class TestRogueDHCPDetector(unittest.TestCase):
 
     def test_detect_second_dhcp_server(self):
         """A second unique DHCP server IP should be flagged as rogue."""
-        p1 = _pkt(protocol="DHCP", src_ip="192.168.1.1",
-                  src_mac="aa:bb:cc:dd:ee:01")
-        p2 = _pkt(protocol="DHCP", src_ip="192.168.1.99",
-                  src_mac="de:ad:be:ef:00:01")
+        p1 = _pkt(protocol="DHCP", src_ip="192.168.1.1", src_mac="aa:bb:cc:dd:ee:01")
+        p2 = _pkt(protocol="DHCP", src_ip="192.168.1.99", src_mac="de:ad:be:ef:00:01")
 
         self.detector.process(p1)
         events = self.detector.process(p2)
@@ -211,6 +211,7 @@ class TestThreatEventModel(unittest.TestCase):
     def test_to_alert_produces_valid_alert(self):
         """ThreatEvent.to_alert() should produce a serializable Alert."""
         from shared.models import ThreatEvent
+
         event = ThreatEvent(
             alert_type="TEST",
             description="Test event",
