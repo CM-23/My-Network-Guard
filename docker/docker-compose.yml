@@ -1,0 +1,69 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════════════════════════════
+#  My Network Guard — Docker Compose
+#
+#  Usage:
+#    make docker          — Start full stack
+#    docker-compose up    — Same
+#    docker-compose logs  — View logs
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: my-network-guard:latest
+    container_name: my-network-guard
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:5000"
+
+    # Required for live packet capture on Linux.
+    # Remove if running in simulation mode only.
+    # cap_add:
+    #   - NET_RAW
+    #   - NET_ADMIN
+    # network_mode: host   # Needed for ARP capture on host network
+
+    environment:
+      PORT:                   "5000"
+      HOST:                   "0.0.0.0"
+      CONFIRM_OWNER:          "true"
+      LOG_FORMAT:             "json"
+      LOG_LEVEL:              "${LOG_LEVEL:-INFO}"
+      SIMULATION_MODE:        "${SIMULATION_MODE:-false}"
+      REQUIRE_AUTH:           "${REQUIRE_AUTH:-false}"
+      JWT_SECRET:             "${JWT_SECRET}"
+      FLASK_SECRET_KEY:       "${FLASK_SECRET_KEY}"
+      TELEGRAM_BOT_TOKEN:     "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_CHAT_ID:       "${TELEGRAM_CHAT_ID}"
+      WEBHOOK_URL:            "${WEBHOOK_URL}"
+      ROOT_USER_NAME:         "${ROOT_USER_NAME}"
+      ROOT_USER_PHONE:        "${ROOT_USER_PHONE}"
+      NETWORK_INTERFACE:      "${NETWORK_INTERFACE}"
+      TRAFFIC_RETENTION_DAYS: "${TRAFFIC_RETENTION_DAYS:-7}"
+      PURGE_INTERVAL_HOURS:   "${PURGE_INTERVAL_HOURS:-24}"
+
+    volumes:
+      - nids_data:/app/data
+      - ./config.json:/app/config.json:rw
+
+    healthcheck:
+      test:     ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+      start_period: 15s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  nids_data:
+    driver: local

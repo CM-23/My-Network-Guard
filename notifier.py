@@ -3,6 +3,10 @@ import threading
 import requests
 import logging
 import json
+import time
+from urllib.parse import urlparse
+import socket
+import ipaddress
 
 logger = logging.getLogger("Notifier")
 
@@ -10,6 +14,28 @@ _notification_queue = queue.Queue()
 _notifier_thread = None
 _shutdown_event = threading.Event()
 _webhook_url = ""
+
+def is_safe_url(url):
+    """Prevent SSRF attacks by resolving URL hostname and validating IP ranges."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        host = parsed.hostname
+        if not host:
+            return False
+        
+        # Resolve to IP to prevent DNS rebinding
+        ip_str = socket.gethostbyname(host)
+        ip = ipaddress.ip_address(ip_str)
+        
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            return False
+        return True
+    except Exception:
+        return False
 
 def start_notifier(webhook_url=""):
     """Start the background notification worker thread."""
@@ -70,7 +96,24 @@ def _notifier_worker():
             # Log the alert locally anyway
             logger.warning(f"[ALERT] Type: {alert['alert_type']} | Severity: {alert['severity']} | {alert['description']}")
             
+            # Dispatch to Telegram subscribers
+            try:
+                import telegram_client
+                telegram_client.send_alert_to_subscribers(
+                    alert["alert_type"],
+                    alert["description"],
+                    alert["severity"],
+                    alert["timestamp"]
+                )
+            except Exception as tg_ex:
+                logger.error(f"Error dispatching Telegram subscriber alerts: {tg_ex}")
+
             if not _webhook_url:
+                _notification_queue.task_done()
+                continue
+                
+            if not is_safe_url(_webhook_url):
+                logger.error(f"SSRF Alert: blocked attempt to dispatch notification to unsafe URL: {_webhook_url}")
                 _notification_queue.task_done()
                 continue
                 
@@ -111,13 +154,40 @@ def _notifier_worker():
                     payload = alert
                     
                 headers = {"Content-Type": "application/json"}
-                response = requests.post(_webhook_url, json=payload, headers=headers, timeout=5.0)
+                max_retries = 3
+                retry_delay = 2.0
                 
-                if response.status_code >= 400:
-                    logger.error(f"Failed to send webhook. Response code: {response.status_code}. Message: {response.text}")
-                else:
-                    logger.info(f"Webhook notification dispatched successfully for {alert['alert_type']}.")
+                for attempt in range(1, max_retries + 1):
+                    logger.info(f"Webhook dispatch attempt {attempt}/{max_retries}:")
+                    logger.info(f"  URL    : {_webhook_url}")
+                    logger.info(f"  Method : POST")
+                    logger.info(f"  Headers: {headers}")
+                    logger.info(f"  Payload: {json.dumps(payload)}")
                     
+                    try:
+                        response = requests.post(_webhook_url, json=payload, headers=headers, timeout=5.0)
+                        logger.info(f"  Response Code: {response.status_code}")
+                        logger.info(f"  Response Body: {response.text[:200]}")
+                        
+                        if response.status_code < 400:
+                            logger.info(f"Webhook notification dispatched successfully on attempt {attempt}.")
+                            break
+                            
+                        # Check if error is non-transient (400, 401, 403, 404, 405)
+                        if response.status_code in (400, 401, 403, 404, 405):
+                            logger.error(f"Non-transient error {response.status_code} received. Skipping retries.")
+                            break
+                            
+                        # If transient, sleep and retry
+                        logger.warning(f"Transient error {response.status_code} on attempt {attempt}. Retrying...")
+                    except Exception as e:
+                        logger.error(f"Network error on attempt {attempt}: {e}")
+                        if attempt == max_retries:
+                            raise
+                    
+                    if attempt < max_retries:
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
             except Exception as ex:
                 logger.error(f"Error dispatching webhook request: {ex}")
             finally:

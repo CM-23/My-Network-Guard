@@ -1,13 +1,41 @@
 services:
   - type: web
-    name: network-scanner
+    name: my-network-guard
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python main.py --confirm-owner --simulation
+    healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: PORT
         value: 10000
       - key: HOST
         value: 0.0.0.0
-    healthCheckPath: /api/status
-    autoDeploy: true
+      - key: CONFIRM_OWNER
+        value: "true"
+      - key: SIMULATION_MODE
+        value: "true"
+      - key: LOG_FORMAT
+        value: "json"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: REQUIRE_AUTH
+        value: "false"
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ROOT_USER_NAME
+        sync: false
+      - key: ROOT_USER_PHONE
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: TRAFFIC_RETENTION_DAYS
+        value: "7"
+      - key: PURGE_INTERVAL_HOURS
+        value: "24"

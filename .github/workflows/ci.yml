@@ -1,0 +1,211 @@
+name: CI — My Network Guard
+
+on:
+  push:
+    branches: ["main", "develop", "feature/**"]
+  pull_request:
+    branches: ["main", "develop"]
+  schedule:
+    # Weekly security scan every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ─── Lint ──────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install flake8 black isort
+
+      - name: Run flake8 (style + syntax)
+        run: |
+          flake8 . \
+            --max-line-length=120 \
+            --exclude=.git,__pycache__,.venv,scanner_agent/oui_table.py \
+            --per-file-ignores="tests/*:E501"
+
+      - name: Check Black formatting
+        run: black --check --line-length=120 .
+
+      - name: Check import ordering
+        run: isort --check-only --profile=black .
+
+
+  # ─── Unit Tests ────────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ \
+            -v \
+            --tb=short \
+            --cov=scanner_agent \
+            --cov=shared \
+            --cov=common \
+            --cov-report=xml:coverage-unit.xml \
+            --cov-fail-under=70
+
+      - name: Upload unit test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage-unit.xml
+
+
+  # ─── Integration Tests ─────────────────────────────────────────────────────
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ tests/test_heuristics.py \
+            -v \
+            --tb=short
+
+
+  # ─── Security Tests ────────────────────────────────────────────────────────
+  test-security:
+    name: OWASP Security Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run OWASP security tests
+        run: |
+          pytest tests/test_security.py tests/security/ \
+            -v \
+            --tb=short
+
+
+  # ─── SAST — Bandit ────────────────────────────────────────────────────────
+  sast:
+    name: SAST (Bandit)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit SAST scan
+        run: |
+          bandit -r . \
+            -ll \
+            --exclude .git,.venv,tests,docker \
+            --format json \
+            -o bandit-report.json || true
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+
+  # ─── Dependency Vulnerability Scan ────────────────────────────────────────
+  dependency-scan:
+    name: Dependency Vulnerability Scan (Safety)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Safety
+        run: pip install safety
+
+      - name: Run Safety dependency scan
+        run: safety check -r requirements.txt --output json > safety-report.json || true
+
+      - name: Upload Safety report
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-report
+          path: safety-report.json
+
+
+  # ─── Docker Build ─────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build & Verify
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f docker/Dockerfile -t my-network-guard:ci .
+
+      - name: Verify image health check passes
+        run: |
+          docker run -d \
+            --name test-container \
+            -p 5000:5000 \
+            -e SIMULATION_MODE=true \
+            -e CONFIRM_OWNER=true \
+            my-network-guard:ci
+          sleep 20
+          docker exec test-container python -c "
+          import urllib.request, sys
+          try:
+              r = urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)
+              print('Health check:', r.status)
+              sys.exit(0 if r.status == 200 else 1)
+          except Exception as e:
+              print('Health check failed:', e)
+              sys.exit(1)
+          "
+          docker stop test-container
+          docker rm test-container

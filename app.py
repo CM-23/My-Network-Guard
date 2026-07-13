@@ -1,380 +1,233 @@
+"""
+app.py — Flask Application Factory.
+
+Creates and configures the Flask application:
+  1. Secure session & secret key
+  2. Registers all Blueprint route modules
+  3. Applies security headers middleware
+  4. Applies rate limiting middleware
+  5. Configures auth middleware
+  6. Registers the SSE stream endpoint
+  7. Maintains full backward compatibility with all existing /api/ routes
+
+OWASP ASVS V14.4: Security headers on all responses.
+OWASP ASVS V13.2.6: Rate limiting on APIs.
+OWASP ASVS V4.1: Auth enforced on all mutating operations.
+"""
+
 import logging
 import os
-import json
 import mimetypes
+import secrets
 from datetime import datetime
-from flask import Flask, jsonify, render_template, request, Response
+
+from flask import Flask, jsonify, render_template, request, Response, session
 
 import database
 import sniffer
 import notifier
 import wifi_manager
 import telegram_agent
-import blocker
-import agent_manager
+from common.constants import APP_NAME, APP_VERSION
+from common.logging_config import get_logger
+from backend_api.middleware.security_headers import apply_security_headers
+from backend_api.middleware.rate_limiter import apply_rate_limiting
+from backend_api.middleware.auth_middleware import configure_auth, require_session_token
+from backend_api.routes.health import health_bp
+from backend_api.routes.devices import devices_bp
+from backend_api.routes.alerts import alerts_bp
+from backend_api.routes.notifications import notifications_bp, set_notifications_config
+from backend_api.routes.settings import settings_bp, set_packet_queue
+from backend_api.routes.statistics import stats_bp
 
 # Ensure correct MIME types on all hosting environments
-mimetypes.add_type('text/css', '.css')
-mimetypes.add_type('application/javascript', '.js')
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/javascript", ".js")
 
-logger = logging.getLogger("App")
-logging.getLogger("werkzeug").setLevel(logging.ERROR)
+logger = get_logger("App")
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+# ─── Module State ─────────────────────────────────────────────────────────────
 
-_app_config = {}
+_app_config: dict = {}
 _packet_queue_ref = None
 
-def set_app_config(config_dict, packet_queue):
+
+def set_app_config(config_dict: dict, packet_queue) -> None:
+    """
+    Called from main.py to inject config and packet queue reference into this module.
+    Preserved for backward compatibility with existing test_security.py tests.
+    """
     global _app_config, _packet_queue_ref
-    _app_config = config_dict
+    _app_config       = config_dict
     _packet_queue_ref = packet_queue
 
-def _save_config():
-    """Persist _app_config back to config.json."""
-    try:
-        with open("config.json", "w") as f:
-            json.dump(_app_config, f, indent=2)
-    except Exception as e:
-        logger.error(f"Error saving config: {e}")
+    # Forward references to blueprint modules
+    set_packet_queue(packet_queue)
+    set_notifications_config(config_dict)
 
-def get_memory_usage():
-    try:
-        import psutil
-        return round(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, 1)
-    except ImportError:
-        pass
-    try:
-        with open("/proc/self/status") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return round(int(line.split()[1]) / 1024, 1)
-    except Exception:
-        pass
-    return 0.0
+    # Configure auth middleware from injected config
+    from shared.config import get_config
+    cfg = get_config()
+    configure_auth(cfg.require_auth, cfg.jwt_secret)
 
-# ─────────────────────────────────────────
-# Pages
-# ─────────────────────────────────────────
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+# ─── App Factory ──────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────
-# WiFi API
-# ─────────────────────────────────────────
+def create_app() -> Flask:
+    """
+    Create and configure the Flask application.
+    Returns the configured app instance.
+    """
+    app = Flask(__name__, template_folder="templates", static_folder="static")
 
-@app.route("/api/wifi/status")
-def wifi_status():
-    return jsonify(wifi_manager.get_network_status())
+    # ── Secret Key (OWASP ASVS V2.10: never hardcode) ─────────────────────────
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 
-@app.route("/api/wifi/networks")
-def wifi_networks():
-    return jsonify({"networks": wifi_manager.list_wifi_networks()})
-
-@app.route("/api/wifi/connect", methods=["POST"])
-def wifi_connect():
-    data = request.json or {}
-    ssid = data.get("ssid", "").strip()
-    password = data.get("password", "").strip()
-    if not ssid:
-        return jsonify({"success": False, "message": "SSID is required."}), 400
-    result = wifi_manager.connect_to_wifi(ssid, password)
-    if result["success"] and _packet_queue_ref:
-        sniffer.trigger_arp_scan(_packet_queue_ref)
-    return jsonify(result)
-
-# ─────────────────────────────────────────
-# System Status
-# ─────────────────────────────────────────
-
-@app.route("/api/status")
-def status():
-    q_size = _packet_queue_ref.qsize() if _packet_queue_ref else 0
-    devices  = database.execute_read("SELECT count(*) as c FROM devices")[0]["c"]
-    logs     = database.execute_read("SELECT count(*) as c FROM traffic_logs")[0]["c"]
-    alerts_a = database.execute_read("SELECT count(*) as c FROM alerts WHERE is_resolved=0")[0]["c"]
-    alerts_t = database.execute_read("SELECT count(*) as c FROM alerts")[0]["c"]
-    blocked  = database.execute_read("SELECT count(*) as c FROM blocked_devices WHERE is_active=1")[0]["c"]
-    pending  = len(agent_manager.get_pending_approvals())
-
-    db_mb = 0
-    if os.path.exists("nids.db"):
-        db_mb = round(os.path.getsize("nids.db") / 1024 / 1024, 3)
-
-    net = wifi_manager.get_network_status()
-
-    return jsonify({
-        "status": "online",
-        "elevated": sniffer.is_elevated(),
-        "packet_queue_size": q_size,
-        "memory_usage_mb": get_memory_usage(),
-        "db_size_mb": db_mb,
-        "network": net,
-        "webhook_url": _app_config.get("webhook_url", ""),
-        "agent_configured": False,
-        "telegram_configured": telegram_agent.is_configured(),
-        "root_user": _app_config.get("root_user", {"name": "", "phone": ""}),
-        "counts": {
-            "devices": devices,
-            "traffic_logs": logs,
-            "alerts_active": alerts_a,
-            "alerts_total": alerts_t,
-            "blocked": blocked,
-            "pending_approval": pending
-        }
-    })
-
-# ─────────────────────────────────────────
-# Root User (Admin) API
-# ─────────────────────────────────────────
-
-@app.route("/api/root-user", methods=["GET"])
-def get_root_user():
-    return jsonify(_app_config.get("root_user", {"name": "", "phone": ""}))
-
-@app.route("/api/root-user/setup", methods=["POST"])
-def setup_root_user():
-    data = request.json or {}
-    name  = data.get("name", "").strip()
-    phone = data.get("phone", "").strip()
-    if not name or not phone:
-        return jsonify({"success": False, "message": "Name and phone number are required."}), 400
-
-    _app_config.setdefault("root_user", {})
-    _app_config["root_user"]["name"]  = name
-    _app_config["root_user"]["phone"] = phone
-    _save_config()
-
-    return jsonify({"success": True, "message": f"Root user '{name}' configured.", "root_user": _app_config["root_user"]})
-
-# ─────────────────────────────────────────
-# Agent (Telegram Bot) Config API
-# ─────────────────────────────────────────
-
-@app.route("/api/telegram/config", methods=["GET"])
-def get_telegram_config():
-    cfg = _app_config.get("telegram", {})
-    token = cfg.get("bot_token", "")
-    masked = token[:4] + "****" + token[-4:] if len(token) > 8 else ("****" if token else "")
-    return jsonify({
-        "bot_token_masked": masked,
-        "chat_id": cfg.get("chat_id", ""),
-        "configured": telegram_agent.is_configured()
-    })
-
-@app.route("/api/telegram/config", methods=["POST"])
-def save_telegram_config():
-    data = request.json or {}
-    _app_config.setdefault("telegram", {})
-
-    for field in ["bot_token", "chat_id"]:
-        val = data.get(field, "").strip()
-        if val:
-            _app_config["telegram"][field] = val
-
-    _save_config()
-    telegram_agent.update_config(_app_config)
-    return jsonify({"success": True, "message": "Telegram Bot settings saved.", "configured": telegram_agent.is_configured()})
-
-@app.route("/api/telegram/test", methods=["POST"])
-def test_telegram():
-    if not telegram_agent.is_configured():
-        return jsonify({"success": False, "message": "Telegram agent not configured."}), 400
-    telegram_agent.send_text(
-        f"✅ *Network Scanner test alert.*\nYour guard is active and monitoring your network.\n— Sent at {datetime.now().strftime('%H:%M:%S')}"
+    # ── Secure Session Cookies (OWASP ASVS V3.4.1 / A07) ─────────────────────
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY = True,
+        SESSION_COOKIE_SAMESITE = "Lax",
+        SESSION_COOKIE_SECURE   = os.environ.get("FLASK_ENV") == "production",
+        PERMANENT_SESSION_LIFETIME = 86400,    # 24 hours
     )
-    return jsonify({"success": True, "message": "Test Telegram message dispatched."})
 
+    # ── Register Blueprints ───────────────────────────────────────────────────
+    app.register_blueprint(health_bp)
+    app.register_blueprint(devices_bp)
+    app.register_blueprint(alerts_bp)
+    app.register_blueprint(notifications_bp)
+    app.register_blueprint(settings_bp)
+    app.register_blueprint(stats_bp)
 
+    # ── Middleware ────────────────────────────────────────────────────────────
+    apply_security_headers(app)
+    apply_rate_limiting(app)
 
-# ─────────────────────────────────────────
-# Pending Approvals API
-# ─────────────────────────────────────────
+    # ── Main page ─────────────────────────────────────────────────────────────
+    @app.route("/")
+    def index():
+        if "session_token" not in session:
+            session["session_token"] = secrets.token_hex(16)
+        return render_template("index.html", session_token=session["session_token"])
 
-@app.route("/api/pending")
-def get_pending():
-    # Retrieve pending approvals from agent_manager
-    return jsonify(agent_manager.get_pending_approvals())
+    # ── SSE Stream ────────────────────────────────────────────────────────────
+    @app.route("/api/stream")
+    @app.route("/api/v1/stream")
+    def sse_stream():
+        """
+        Server-Sent Events endpoint for real-time dashboard updates.
+        Yields a merged stream of new_device, alert, and status_update events.
+        """
+        def _event_generator():
+            import time
+            import json
 
-# ─────────────────────────────────────────
-# Devices API
-# ─────────────────────────────────────────
+            last_device_ts  = ""
+            last_alert_id   = 0
+            heartbeat_count = 0
 
-@app.route("/api/devices")
-def devices():
-    net = wifi_manager.get_network_status()
-    subnet = net.get("subnet", "")
-    prefix = ""
-    if subnet and "/" in subnet:
-        prefix = subnet.split("/")[0].rsplit(".", 1)[0] + "."
+            # Initialise last_alert_id to current max to avoid re-sending old alerts
+            rows = database.execute_read("SELECT MAX(id) as m FROM alerts")
+            if rows and rows[0]["m"]:
+                last_alert_id = rows[0]["m"]
 
-    if prefix:
-        # Filter to only return devices currently matching the active subnet prefix
-        rows = database.execute_read(
-            "SELECT mac_address, last_known_ip, hostname, custom_name, is_approved, device_type, first_seen, last_seen FROM devices WHERE last_known_ip LIKE ? ORDER BY last_seen DESC",
-            (f"{prefix}%",)
-        )
-    else:
-        rows = database.execute_read(
-            "SELECT mac_address, last_known_ip, hostname, custom_name, is_approved, device_type, first_seen, last_seen FROM devices ORDER BY last_seen DESC"
+            rows = database.execute_read("SELECT MAX(last_seen) as m FROM devices")
+            if rows and rows[0]["m"]:
+                last_device_ts = rows[0]["m"] or ""
+
+            while True:
+                try:
+                    sent_something = False
+
+                    # ── New / Updated Devices ─────────────────────────────────
+                    new_devs = database.execute_read(
+                        """SELECT mac_address, last_known_ip, hostname, friendly_name,
+                                  vendor, is_online, device_type, last_seen
+                           FROM devices
+                           WHERE last_seen > ? AND deleted_at IS NULL
+                           ORDER BY last_seen ASC
+                           LIMIT 20""",
+                        (last_device_ts,)
+                    )
+                    for dev in new_devs:
+                        last_device_ts = max(last_device_ts, dev["last_seen"])
+                        event_data = json.dumps({
+                            "type":   "new_device",
+                            "device": dev,
+                        })
+                        yield f"data: {event_data}\n\n"
+                        sent_something = True
+
+                    # ── New Alerts ────────────────────────────────────────────
+                    new_alerts = database.execute_read(
+                        """SELECT id, timestamp, alert_type, description, severity,
+                                  confidence, affected_mac, mitre_attack, is_resolved
+                           FROM alerts
+                           WHERE id > ?
+                           ORDER BY id ASC
+                           LIMIT 10""",
+                        (last_alert_id,)
+                    )
+                    for alert in new_alerts:
+                        last_alert_id = max(last_alert_id, alert["id"])
+                        event_data = json.dumps({
+                            "type":  "alert",
+                            "alert": alert,
+                        })
+                        yield f"data: {event_data}\n\n"
+                        sent_something = True
+
+                    # ── Heartbeat (every 15 poll cycles = ~30s) ───────────────
+                    heartbeat_count += 1
+                    if heartbeat_count >= 15 or not sent_something:
+                        heartbeat_count = 0
+                        hb = json.dumps({
+                            "type":      "heartbeat",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        })
+                        yield f"data: {hb}\n\n"
+
+                    time.sleep(2)
+
+                except GeneratorExit:
+                    break
+                except Exception as e:
+                    logger.error(f"SSE error: {e}")
+                    time.sleep(2)
+
+        return Response(
+            _event_generator(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control":   "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection":      "keep-alive",
+            },
         )
 
-    # Enrich with blocked status
-    blocked_ips = {r["ip"] for r in database.execute_read("SELECT ip FROM blocked_devices WHERE is_active=1")}
-    for row in rows:
-        row["is_blocked"] = row["last_known_ip"] in blocked_ips
-    return jsonify(rows)
+    # ── Error Handlers ────────────────────────────────────────────────────────
 
-@app.route("/api/devices/<mac>/type", methods=["POST"])
-def update_device_type(mac):
-    data = request.json or {}
-    dev_type = data.get("type", "").strip().lower()
-    if dev_type not in ["phone", "pc", "tv", "printer", "router", "iot", "unknown"]:
-        return jsonify({"success": False, "message": "Invalid device type."}), 400
-    mac = mac.lower()
-    database.execute_write_sync("UPDATE devices SET device_type = ? WHERE mac_address = ?", (dev_type, mac))
-    return jsonify({"success": True, "message": f"Device type updated to '{dev_type}'."})
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({"success": False, "error": "NOT_FOUND", "message": "Resource not found."}), 404
 
-@app.route("/api/devices/<mac>/rename", methods=["POST"])
-def rename_device(mac):
-    data = request.json or {}
-    name = data.get("name", "").strip()
-    if not name:
-        return jsonify({"success": False, "message": "Name cannot be empty."}), 400
-    mac = mac.lower()
-    database.execute_write_sync("UPDATE devices SET custom_name=? WHERE mac_address=?", (name, mac))
-    return jsonify({"success": True, "message": f"Device renamed to '{name}'."})
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify({"success": False, "error": "METHOD_NOT_ALLOWED", "message": "Method not allowed."}), 405
 
-@app.route("/api/devices/<mac>/block", methods=["POST"])
-def block_device_endpoint(mac):
-    mac = mac.lower()
-    row = database.execute_read("SELECT last_known_ip, hostname, custom_name FROM devices WHERE mac_address=?", (mac,))
-    if not row:
-        return jsonify({"success": False, "message": "Device not found."}), 404
-    ip       = row[0]["last_known_ip"]
-    hostname = row[0].get("custom_name") or row[0].get("hostname", "Unknown")
-    result   = _do_block_device(mac, ip, hostname)
-    return jsonify(result)
+    @app.errorhandler(429)
+    def rate_limited(e):
+        return jsonify({"success": False, "error": "RATE_LIMIT_EXCEEDED", "message": "Too many requests."}), 429
 
-@app.route("/api/devices/<mac>/allow", methods=["POST"])
-def allow_device(mac):
-    mac = mac.lower()
-    database.execute_write_sync("UPDATE devices SET is_approved=1 WHERE mac_address=?", (mac,))
-    agent_manager.remove_pending(mac)
-    return jsonify({"success": True, "message": "Device approved."})
+    @app.errorhandler(500)
+    def server_error(e):
+        logger.error(f"Internal server error: {e}")
+        return jsonify({"success": False, "error": "INTERNAL_ERROR", "message": "An internal error occurred."}), 500
 
-@app.route("/api/devices/<mac>/unblock", methods=["POST"])
-def unblock_device_endpoint(mac):
-    mac = mac.lower()
-    rows = database.execute_read("SELECT ip FROM blocked_devices WHERE mac=? AND is_active=1", (mac,))
-    if not rows:
-        return jsonify({"success": False, "message": "No active block found for this device."}), 404
-    ip = rows[0]["ip"]
-    result = blocker.unblock_device(ip)
-    if result["success"]:
-        database.execute_write_sync("UPDATE blocked_devices SET is_active=0 WHERE mac=? AND is_active=1", (mac,))
-        database.execute_write_async("UPDATE devices SET is_approved=0 WHERE mac_address=?", (mac,))
-    return jsonify(result)
+    return app
 
-@app.route("/api/devices/<mac>/delete", methods=["POST"])
-def delete_device(mac):
-    mac = mac.lower()
-    database.execute_write_sync("DELETE FROM devices WHERE mac_address=?", (mac,))
-    return jsonify({"success": True})
 
-def _do_block_device(mac, ip, hostname="Unknown"):
-    result = blocker.block_device(ip, mac)
-    if result["success"]:
-        database.execute_write_async(
-            "INSERT INTO blocked_devices (ip, mac, hostname, blocked_by) VALUES (?,?,?,'admin')",
-            (ip, mac, hostname)
-        )
-        database.execute_write_async("UPDATE devices SET is_approved=-1 WHERE mac_address=?", (mac,))
-        agent_manager.remove_pending(mac)
-    return result
+# ─── Module-level app instance ────────────────────────────────────────────────
+# Created at import time so existing code that does `import app; app.app` works.
 
-# ─────────────────────────────────────────
-# Blocked Devices API
-# ─────────────────────────────────────────
-
-@app.route("/api/blocked")
-def blocked_devices():
-    rows = database.execute_read("SELECT * FROM blocked_devices WHERE is_active=1 ORDER BY blocked_at DESC")
-    return jsonify(rows)
-
-# ─────────────────────────────────────────
-# Traffic Logs API
-# ─────────────────────────────────────────
-
-@app.route("/api/traffic_logs")
-def traffic_logs():
-    sort  = request.args.get("sort", "last_active")
-    limit = request.args.get("limit", 150, type=int)
-    order = "packet_count DESC" if sort == "packet_count" else "last_active DESC"
-    rows  = database.execute_read(f"SELECT * FROM traffic_logs ORDER BY {order} LIMIT ?", (limit,))
-    return jsonify(rows)
-
-# ─────────────────────────────────────────
-# Alerts API
-# ─────────────────────────────────────────
-
-@app.route("/api/alerts")
-def alerts():
-    show_resolved = request.args.get("show_resolved", "0")
-    if show_resolved == "1":
-        rows = database.execute_read("SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 200")
-    else:
-        rows = database.execute_read("SELECT * FROM alerts WHERE is_resolved=0 ORDER BY timestamp DESC LIMIT 200")
-    return jsonify(rows)
-
-@app.route("/api/alerts/resolve/<int:alert_id>", methods=["POST"])
-def resolve_alert(alert_id):
-    database.execute_write_sync("UPDATE alerts SET is_resolved=1 WHERE id=?", (alert_id,))
-    return jsonify({"success": True})
-
-@app.route("/api/alerts/resolve-all", methods=["POST"])
-def resolve_all():
-    database.execute_write_sync("UPDATE alerts SET is_resolved=1 WHERE is_resolved=0")
-    return jsonify({"success": True})
-
-# ─────────────────────────────────────────
-# Control Actions
-# ─────────────────────────────────────────
-
-@app.route("/api/scan/trigger", methods=["POST"])
-def trigger_scan():
-    if _packet_queue_ref:
-        sniffer.trigger_arp_scan(_packet_queue_ref)
-        return jsonify({"success": True, "message": "ARP scan triggered."})
-    return jsonify({"success": False, "message": "Scanner not initialized."}), 500
-
-@app.route("/api/purge", methods=["POST"])
-def purge():
-    days = _app_config.get("traffic_retention_days", 7)
-    res  = database.execute_write_sync(
-        "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)", (f"-{days} days",)
-    )
-    return jsonify({"success": True, "message": f"Purged {res.get('rowcount', 0)} old flow logs."})
-
-@app.route("/api/config/update", methods=["POST"])
-def update_config():
-    data = request.json or {}
-    webhook_url = data.get("webhook_url", "").strip()
-    _app_config["webhook_url"] = webhook_url
-    notifier.update_webhook_url(webhook_url)
-    _save_config()
-    return jsonify({"success": True})
-
-@app.route("/api/webhook/test", methods=["POST"])
-def test_webhook():
-    if not _app_config.get("webhook_url"):
-        return jsonify({"success": False, "message": "No webhook URL configured."}), 400
-    ts = datetime.now().isoformat()
-    database.execute_write_async(
-        "INSERT INTO alerts (timestamp, alert_type, description, severity, is_resolved) VALUES (?,?,?,?,0)",
-        (ts, "TEST_ALERT", "Webhook test from Network Scanner.", "LOW")
-    )
-    notifier.queue_alert("TEST_ALERT", "Webhook test notification.", "LOW", ts)
-    return jsonify({"success": True, "message": "Test alert dispatched."})
+app = create_app()

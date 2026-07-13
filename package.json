@@ -4,8 +4,8 @@
   "description": "Network Scanner — Your devices guard",
   "main": "main.py",
   "scripts": {
-    "dev": "python main.py",
-    "start": "python main.py",
+    "dev": "python main.py --confirm-owner",
+    "start": "python main.py --confirm-owner",
     "test": "python -m unittest tests/test_heuristics.py"
   },
   "keywords": [

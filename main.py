@@ -20,7 +20,6 @@ import sniffer
 import evaluator
 import notifier
 import telegram_agent
-import blocker
 from app import app, set_app_config
 
 # ─── Logging Setup ───
@@ -44,16 +43,13 @@ _config = {}
 
 def load_config():
     global _config
+    config_path = os.path.abspath("config.json")
+    logger.info(f"Resolved config file path: {config_path}")
+    
     defaults = {
         "interface": "",
         "webhook_url": "",
         "root_user": {"name": "", "phone": ""},
-        "twilio": {
-            "account_sid": "",
-            "auth_token": "",
-            "from_number": "",
-            "use_whatsapp": True
-        },
         "telegram": {
             "bot_token": "",
             "chat_id": ""
@@ -78,13 +74,10 @@ def load_config():
                     _config[k] = v
             # Ensure nested dicts have defaults
             _config.setdefault("root_user", defaults["root_user"])
-            _config.setdefault("twilio", defaults["twilio"])
             _config.setdefault("telegram", defaults["telegram"])
-            for k, v in defaults["twilio"].items():
-                _config["twilio"].setdefault(k, v)
             for k, v in defaults["telegram"].items():
                 _config["telegram"].setdefault(k, v)
-            logger.info("Config loaded from config.json.")
+            logger.info(f"Config loaded from config.json. Path: {config_path}")
         except Exception as e:
             logger.error(f"Config load error: {e}. Using defaults.")
             _config = defaults
@@ -185,7 +178,24 @@ def main():
     parser.add_argument("-p", "--port", type=int, default=None, help="Dashboard port (default: 5000 or $PORT env)")
     parser.add_argument("--host", default=None, help="Bind host (default: 0.0.0.0 for Render, 127.0.0.1 locally)")
     parser.add_argument("--db", default="nids.db", help="SQLite database path")
+    parser.add_argument("--confirm-owner", action="store_true", help="Confirm network ownership or authorization")
     args = parser.parse_args()
+
+    # Guardrail Check: Target network monitoring authorization
+    confirmed = args.confirm_owner or os.environ.get("CONFIRM_OWNER") == "true"
+    if not confirmed:
+        if sys.stdin.isatty():
+            try:
+                ans = input("⚠️ Do you confirm that you own or have administrative authorization to monitor this target network? (y/N): ")
+                if ans.lower().strip() not in ("y", "yes"):
+                    print("❌ Monitoring authorization not confirmed. Exiting.")
+                    sys.exit(1)
+            except Exception:
+                print("❌ Non-interactive console detected but confirmation flag was not provided. Exiting.")
+                sys.exit(1)
+        else:
+            print("❌ Non-interactive console detected. Please provide the --confirm-owner flag or set CONFIRM_OWNER=true to verify authorization. Exiting.")
+            sys.exit(1)
 
     config = load_config()
     if args.interface:
@@ -203,7 +213,6 @@ def main():
 
     # Start all subsystems
     database.start_db_worker(args.db)
-    blocker.load_blocked_from_db(database.execute_read)
     notifier.start_notifier(config.get("webhook_url", ""))
     telegram_agent.start_agent(config)
     evaluator.start_evaluator(packet_queue, config)
@@ -212,6 +221,10 @@ def main():
         interface=config.get("interface"),
         simulation_mode=(config.get("simulation_mode", False) or args.simulation)
     )
+
+    # Print startup diagnostics report (Npcap status, versions, interface, gateway, etc.)
+    config_path = os.path.abspath("config.json")
+    sniffer.log_startup_diagnostics(config_path, config)
 
     set_app_config(config, packet_queue)
 
@@ -223,7 +236,6 @@ def main():
     logger.info(f"Network Scanner starting on http://{host}:{port}/")
     if host == "0.0.0.0":
         logger.info("Publicly accessible — suitable for Render/cloud deployment.")
-    logger.info(f"Twilio WhatsApp webhook endpoint: http://YOUR-RENDER-URL/api/agent/reply")
 
     try:
         app.run(host=host, port=port, debug=False, use_reloader=False)

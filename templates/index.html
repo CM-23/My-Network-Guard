@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="csrf-token" content="{{ session_token }}">
 </head>
 <body>
 
@@ -141,9 +142,16 @@
             <button class="icon-btn" onclick="showSettingsPanel()" title="Settings">
                 <i class="fa-solid fa-gear"></i>
             </button>
+            <button class="icon-btn" onclick="showHealthPanel()" title="System Health" id="btn-health-icon">
+                <i class="fa-solid fa-heart-pulse"></i>
+                <span id="health-dot" class="alert-dot hidden" style="background:#ef4444;"></span>
+            </button>
             <button class="icon-btn" onclick="showRootUserSetup()" title="Admin profile" id="btn-admin">
                 <i class="fa-solid fa-user-shield"></i>
                 <span id="root-user-name-display" style="font-size:0.7rem;margin-left:2px;"></span>
+            </button>
+            <button class="icon-btn" onclick="showAboutModal()" title="About My Network Guard">
+                <i class="fa-solid fa-circle-info"></i>
             </button>
             <button class="icon-btn" onclick="goToSetup()" title="Switch network">
                 <i class="fa-solid fa-wifi"></i>
@@ -175,19 +183,68 @@
         </div>
     </div>
 
+    <!-- Rich Diagnostics Banner (Phase 5) -->
+    <div id="diagnostics-banner" style="margin: 0.75rem auto; max-width: 1400px; padding: 0 1rem; display: none;">
+        <div id="diagnostics-inner" style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border);">
+            <!-- Mode header row -->
+            <div id="diag-mode-row" style="display:flex; align-items:center; justify-content:space-between; padding: 0.6rem 1rem; font-size:0.82rem; font-weight:600; gap:0.5rem; flex-wrap:wrap;">
+                <span id="diag-mode-label" style="display:flex;align-items:center;gap:0.4rem;"></span>
+                <span id="diag-live-stats" style="font-size:0.75rem; opacity:0.85; display:flex; gap:1rem; flex-wrap:wrap;"></span>
+            </div>
+            <!-- Indicator rows -->
+            <div id="diag-indicators" style="display:flex; gap:0; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06);">
+                <!-- populated by JS -->
+            </div>
+        </div>
+    </div>
+    <!-- Legacy scan-status-banner (keep for backward compatibility with app.js references) -->
+    <div id="scan-status-banner" style="display:none;"><span id="scan-status-text"></span></div>
+
     <!-- Dashboard Body -->
     <div class="dashboard-body">
 
         <!-- Device grid -->
         <section class="devices-section">
-            <div class="section-header">
-                <h2 class="section-title"><i class="fa-solid fa-network-wired"></i> Connected Devices</h2>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <h2 class="section-title" style="margin-bottom: 0; white-space: nowrap;"><i class="fa-solid fa-network-wired"></i> Connected Devices</h2>
+                    <!-- Network Scope Toggle -->
+                    <div class="scope-toggle" style="display: flex; background: var(--navy-800); padding: 2px; border-radius: 6px; border: 1px solid var(--border);">
+                        <button id="scope-btn-current" onclick="changeNetworkScope('current')" style="border: none; background: var(--blue-600); color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">This Network</button>
+                        <button id="scope-btn-all" onclick="changeNetworkScope('all')" style="border: none; background: transparent; color: var(--text-2); padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">All Networks</button>
+                    </div>
+                </div>
                 <div class="section-actions">
                     <input type="text" id="device-filter" class="search-input" placeholder="Search devices..." oninput="renderDevices()">
                     <button class="btn btn-primary btn-sm" onclick="triggerScan()" id="btn-refresh-devices">
                         <i class="fa-solid fa-rotate"></i> Refresh
                     </button>
                 </div>
+            </div>
+
+            <!-- Device Segment Tabs -->
+            <div class="segment-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: none;">
+                <button class="segment-tab active" data-segment="all" onclick="setDeviceSegment('all')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--blue-600); color: white;">
+                    All Devices <span class="segment-count" id="count-all" style="background: rgba(255,255,255,0.2); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="pc" onclick="setDeviceSegment('pc')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-laptop"></i> Laptops & PCs <span class="segment-count" id="count-pc" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="phone" onclick="setDeviceSegment('phone')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-mobile-screen"></i> Mobiles <span class="segment-count" id="count-phone" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="tv" onclick="setDeviceSegment('tv')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-tv"></i> Smart TVs <span class="segment-count" id="count-tv" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="iot" onclick="setDeviceSegment('iot')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-house-signal"></i> IoT / Smart Home <span class="segment-count" id="count-iot" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="router" onclick="setDeviceSegment('router')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-wifi"></i> Network <span class="segment-count" id="count-router" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="segment-tab" data-segment="printer" onclick="setDeviceSegment('printer')" style="border: none; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; background: var(--bg-card); color: var(--text-2);">
+                    <i class="fa-solid fa-print"></i> Printers <span class="segment-count" id="count-printer" style="background: rgba(255,255,255,0.1); padding: 0.05rem 0.35rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                </button>
             </div>
 
             <div id="devices-grid" class="devices-grid">
@@ -238,46 +295,61 @@
                     <i class="fa-solid fa-gear"></i> Settings
                 </div>
                 <div class="panel-body">
-                    <!-- WhatsApp Agent -->
+                    <!-- Telegram Bot Token Config -->
                     <div class="setting-group">
-                        <label class="setting-label"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> WhatsApp Agent</label>
-                        <span id="agent-status-badge" class="badge badge-orange">Not Configured</span>
-                        <button class="btn btn-outline btn-sm btn-block" onclick="showAgentSettings()" style="margin-top:0.4rem;">
-                            <i class="fa-solid fa-key"></i> Configure API Keys
-                        </button>
-                        <button class="btn btn-ghost btn-sm btn-block" onclick="testAgentAlert()">
-                            <i class="fa-brands fa-whatsapp"></i> Send Test Message
+                        <label class="setting-label"><i class="fa-brands fa-telegram" style="color:#0088cc"></i> Telegram Bot Config</label>
+                        <span id="telegram-status-badge" class="badge badge-orange">Not Configured</span>
+                        <button class="btn btn-outline btn-sm btn-block" onclick="showTelegramSettings()" style="margin-top:0.4rem;">
+                            <i class="fa-solid fa-key"></i> Configure Bot Token
                         </button>
                     </div>
                     <hr class="divider">
-                    <!-- Telegram Bot Agent -->
+                    <!-- Telegram Bot Subscribe Panel -->
                     <div class="setting-group">
-                        <label class="setting-label"><i class="fa-brands fa-telegram" style="color:#0088cc"></i> Telegram Bot Agent</label>
-                        <span id="telegram-status-badge" class="badge badge-orange">Not Configured</span>
-                        <button class="btn btn-outline btn-sm btn-block" onclick="showTelegramSettings()" style="margin-top:0.4rem;">
-                            <i class="fa-solid fa-key"></i> Configure Telegram Bot
+                        <label class="setting-label"><i class="fa-brands fa-telegram" style="color:#0088cc"></i> Telegram Subscribe</label>
+                        <div class="input-row" style="margin-top:0.4rem; display: flex; gap: 0.25rem;">
+                            <input type="text" id="inp-subscribe-chat-id" class="text-input text-input-sm" placeholder="Telegram Chat ID..." style="flex: 1;">
+                            <button class="btn btn-primary btn-sm" onclick="subscribeTelegram()">Subscribe</button>
+                        </div>
+                        <button class="btn btn-ghost btn-sm btn-block" onclick="testTelegramAlert()" style="margin-top:0.4rem;">
+                            <i class="fa-brands fa-telegram"></i> Send Test Alert
                         </button>
-                        <button class="btn btn-ghost btn-sm btn-block" onclick="testTelegramAlert()">
-                            <i class="fa-brands fa-telegram"></i> Send Test Message
-                        </button>
+                        <p class="setup-note" style="margin-top:0.4rem; font-size: 0.72rem; color: var(--text-3);">
+                            <i class="fa-solid fa-circle-info"></i> Subscribe your Chat ID to receive alerts. Find your ID by messaging <a href="https://t.me/userinfobot" target="_blank" style="color:var(--blue-400);">@userinfobot</a>. Make sure to message your bot <strong>/start</strong> first.
+                        </p>
                     </div>
                     <hr class="divider">
                     <!-- Discord Webhook -->
                     <div class="setting-group">
-                        <label class="setting-label">Discord Webhook</label>
+                        <label class="setting-label">Discord/Slack Webhook</label>
                         <input type="text" id="webhook-url-input" class="text-input text-input-sm" placeholder="https://discord.com/api/webhooks/...">
-                        <div class="setting-actions">
+                        <div class="setting-actions" style="margin-top:0.4rem; display: flex; gap: 0.25rem;">
                             <button class="btn btn-primary btn-sm" onclick="saveWebhook()">Save</button>
-                            <button class="btn btn-outline btn-sm" onclick="testWebhook()">Test</button>
+                            <button class="btn btn-outline btn-sm" onclick="testWebhook()" id="btn-test-webhook">
+                                <i class="fa-solid fa-paper-plane"></i> Test
+                            </button>
                         </div>
+                        <span id="webhook-test-result" style="font-size:0.72rem; margin-top:0.3rem; display:block;"></span>
                     </div>
                     <hr class="divider">
+                    <!-- Data Management -->
                     <div class="setting-group">
                         <label class="setting-label">Data Management</label>
                         <button class="btn btn-danger btn-block" onclick="purgeOldLogs()">
                             <i class="fa-solid fa-trash"></i> Purge old logs (&gt;7 days)
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Health Dashboard Panel (Phase 13, hidden by default) -->
+            <div class="sidebar-panel hidden" id="panel-health">
+                <div class="panel-title">
+                    <i class="fa-solid fa-heart-pulse"></i> System Health
+                    <button class="btn-text" onclick="fetchHealth()" title="Refresh health status"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                <div class="panel-body" id="health-panel-body">
+                    <div class="empty-msg"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading…</div>
                 </div>
             </div>
 
@@ -335,42 +407,7 @@
     </div>
 </div>
 
-<!-- ══════════════════════════════════════
-     Agent (Twilio WhatsApp) Config Modal
-══════════════════════════════════════ -->
-<div id="agent-config-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAgentModal()">
-    <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <h3><i class="fa-brands fa-whatsapp" style="color:#25d366"></i> Twilio WhatsApp API Keys</h3>
-            <button class="modal-close" onclick="closeAgentModal()"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="modal-body">
-            <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:0.75rem;">
-                Get these from <a href="https://console.twilio.com" target="_blank" style="color:var(--blue-400);">console.twilio.com</a>
-            </p>
-            <div class="form-group">
-                <label class="form-label">Account SID</label>
-                <input type="text" id="inp-twilio-sid" class="text-input text-input-sm" placeholder="ACxxxxxxxxxxxxxxxx">
-            </div>
-            <div class="form-group" style="margin-top:0.6rem;">
-                <label class="form-label">Auth Token</label>
-                <input type="password" id="inp-twilio-token" class="text-input text-input-sm" placeholder="Leave blank to keep existing">
-            </div>
-            <div class="form-group" style="margin-top:0.6rem;">
-                <label class="form-label">From Number <span style="color:var(--text-3);font-weight:400;">(Sandbox: +14155238886)</span></label>
-                <input type="text" id="inp-twilio-from" class="text-input text-input-sm" placeholder="+14155238886">
-            </div>
-            <div class="modal-info-box">
-                <i class="fa-solid fa-circle-info"></i>
-                WhatsApp Sandbox users must first text <strong>join &lt;keyword&gt;</strong> to <strong>+1 415 523 8886</strong> on WhatsApp to opt in.
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-outline" onclick="closeAgentModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveAgentConfig()"><i class="fa-solid fa-key"></i> Save Keys</button>
-        </div>
-    </div>
-</div>
+
 
 <!-- ══════════════════════════════════════
      Agent (Telegram Bot) Config Modal
@@ -408,9 +445,47 @@
     </div>
 </div>
 
+<!-- ══════════════════════════════════════
+     About Modal
+     ══════════════════════════════════════ -->
+<div id="about-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeAboutModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-circle-info"></i> About My Network Guard</h3>
+            <button class="modal-close" onclick="closeAboutModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.875rem; color:var(--text-1); font-weight: 500;">
+                My Network Guard is a lightweight, high-performance Network Intrusion Detection System (NIDS) designed to keep your home or office networks safe.
+            </p>
+            <p style="font-size:0.8rem; color:var(--text-2); line-height: 1.5;">
+                It passively monitors network traffic, builds hardware profiles, automatically flags new unknown devices, and uses advanced heuristics to detect DNS tunneling or out-of-hours activity.
+            </p>
+            
+            <div style="margin: 0.5rem 0; padding: 1rem; background: var(--navy-700); border: 1px solid var(--border); border-radius: var(--radius-md); text-align: center;">
+                <h4 style="font-size: 0.85rem; color: var(--blue-400); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em;">Live Web App</h4>
+                <p style="font-size: 0.75rem; color: var(--text-3); margin-bottom: 0.8rem;">
+                    Access the live interactive simulation dashboard hosted on Render without local installation:
+                </p>
+                <a href="https://my-network-guard.onrender.com" target="_blank" class="btn btn-primary btn-block" style="text-decoration: none;">
+                    <i class="fa-solid fa-rocket"></i> Open Live Demo Site
+                </a>
+            </div>
+            
+            <div style="font-size: 0.72rem; color: var(--text-3); display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                <span>Version 1.0.0</span>
+                <span>Powered by Scapy & Flask</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeAboutModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div id="toast-container"></div>
 
-<script src="{{ url_for('static', filename='app.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ range(1, 10000) | random }}"></script>
 </body>
 </html>
