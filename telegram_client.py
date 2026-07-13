@@ -56,9 +56,8 @@ def send_message(chat_id, text):
 
 def send_alert_to_subscribers(alert_type, description, severity, timestamp):
     """Dispatches a formatted alert to all registered subscribers on Telegram."""
-    # Wire into the same alert dispatch path on NEW_DEVICE_ON_JOIN (or test alerts)
-    if alert_type not in ("NEW_DEVICE_ON_JOIN", "TEST_ALERT"):
-        return
+    # Send all security alerts (like MASS_SCAN, BEACONING_C2, etc.) to Telegram subscribers
+
         
     subscribers = database.execute_read("SELECT chat_id FROM telegram_subscribers")
     if not subscribers:
