@@ -201,8 +201,8 @@ jobs:
           import urllib.request, sys
           try:
               r = urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)
-              print('Health check:', r.status)
-              sys.exit(0 if r.status == 200 else 1)
+              print('Health check:', r.getcode())
+              sys.exit(0 if r.getcode() == 200 else 1)
           except Exception as e:
               print('Health check failed:', e)
               sys.exit(1)
