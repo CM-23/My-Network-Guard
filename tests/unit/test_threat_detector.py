@@ -50,8 +50,18 @@ class TestARPSpoofingDetector(unittest.TestCase):
 
     def test_detect_multiple_macs_same_ip(self):
         """Two different MACs claiming the same IP should trigger ARP Spoofing."""
-        p1 = _pkt(protocol="ARP", src_mac="aa:bb:cc:dd:ee:01", src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
-        p2 = _pkt(protocol="ARP", src_mac="11:22:33:44:55:66", src_ip="192.168.1.1", dst_mac="ff:ff:ff:ff:ff:ff")
+        p1 = _pkt(
+            protocol="ARP",
+            src_mac="aa:bb:cc:dd:ee:01",
+            src_ip="192.168.1.1",
+            dst_mac="ff:ff:ff:ff:ff:ff",
+        )
+        p2 = _pkt(
+            protocol="ARP",
+            src_mac="11:22:33:44:55:66",
+            src_ip="192.168.1.1",
+            dst_mac="ff:ff:ff:ff:ff:ff",
+        )
 
         self.detector.process(p1)
         events = self.detector.process(p2)
@@ -162,7 +172,11 @@ class TestPortScanDetector(unittest.TestCase):
         events_all = []
         for port in range(20, 37):  # 17 ports
             p = _pkt(
-                protocol="TCP", src_ip="10.0.0.5", dst_ip="192.168.1.50", dst_port=port, src_mac="aa:bb:cc:dd:ee:02"
+                protocol="TCP",
+                src_ip="10.0.0.5",
+                dst_ip="192.168.1.50",
+                dst_port=port,
+                src_mac="aa:bb:cc:dd:ee:02",
             )
             events_all.extend(self.detector.process(p))
 

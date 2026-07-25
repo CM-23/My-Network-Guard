@@ -162,7 +162,13 @@ def update_config_field(key: str, value: Any) -> None:
 
 def _apply_json(cfg: AppConfig, raw: Dict[str, Any]) -> None:
     """Map JSON dict values onto the AppConfig dataclass."""
-    str_fields = ["interface", "webhook_url", "out_of_hours_start", "out_of_hours_end", "host"]
+    str_fields = [
+        "interface",
+        "webhook_url",
+        "out_of_hours_start",
+        "out_of_hours_end",
+        "host",
+    ]
     int_fields = [
         "out_of_hours_packet_limit",
         "dns_length_threshold",
@@ -172,7 +178,12 @@ def _apply_json(cfg: AppConfig, raw: Dict[str, Any]) -> None:
         "port",
     ]
     float_fields = ["dns_entropy_threshold"]
-    bool_fields = ["simulation_mode", "require_auth", "enable_threat_detection", "enable_fingerprinting"]
+    bool_fields = [
+        "simulation_mode",
+        "require_auth",
+        "enable_threat_detection",
+        "enable_fingerprinting",
+    ]
     list_fields = ["appliance_macs", "local_networks"]
 
     for f in str_fields:

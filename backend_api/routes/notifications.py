@@ -53,7 +53,10 @@ def telegram_subscribe():
         data = request.get_json(silent=True) or {}
         chat_id = validate_chat_id(str(data.get("chat_id", "")).strip())
 
-        database.execute_write_sync("INSERT OR IGNORE INTO telegram_subscribers (chat_id) VALUES (?)", (chat_id,))
+        database.execute_write_sync(
+            "INSERT OR IGNORE INTO telegram_subscribers (chat_id) VALUES (?)",
+            (chat_id,),
+        )
         return jsonify({"success": True, "message": f"Chat ID '{chat_id}' registered."})
     except ValidationError as e:
         return jsonify(e.to_dict()), e.http_status
@@ -68,7 +71,15 @@ def telegram_subscribe():
 def telegram_test():
     rows = database.execute_read("SELECT chat_id FROM telegram_subscribers")
     if not rows:
-        return jsonify({"success": False, "message": "No Telegram subscribers registered. Subscribe first."}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "message": "No Telegram subscribers registered. Subscribe first.",
+                }
+            ),
+            400,
+        )
 
     ts = datetime.now().isoformat()
     database.execute_write_async(
@@ -173,12 +184,19 @@ def test_webhook():
         test_payload = {
             "username": "My Network Guard",
             "embeds": [
-                {"title": "✅ Webhook Test", "description": "Your webhook is working correctly.", "color": 3066993}
+                {
+                    "title": "✅ Webhook Test",
+                    "description": "Your webhook is working correctly.",
+                    "color": 3066993,
+                }
             ],
         }
         resp = _requests.post(cfg.webhook_url, json=test_payload, timeout=5)
         if resp.status_code < 400:
             return jsonify({"success": True, "message": f"Test sent. HTTP {resp.status_code}"})
-        return jsonify({"success": False, "message": f"Webhook returned {resp.status_code}"}), 400
+        return (
+            jsonify({"success": False, "message": f"Webhook returned {resp.status_code}"}),
+            400,
+        )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500

@@ -53,7 +53,7 @@ class TestNIDSEvaluator(unittest.TestCase):
         # Test Broadcast / Multicast / Invalid IPs
         self.assertFalse(is_local_ip("224.0.0.1"))
         self.assertFalse(is_local_ip("255.255.255.255"))
-        self.assertFalse(is_local_ip("0.0.0.0"))
+        self.assertFalse(is_local_ip("0.0.0.0"))  # nosec B104
         self.assertFalse(is_local_ip(None))
 
 

@@ -22,11 +22,26 @@ def run_migration(db_path="nids.db"):
 
         # 1. Extend devices table
         migrations = [
-            ("ALTER TABLE devices ADD COLUMN vendor TEXT DEFAULT 'Unknown';", "vendor column"),
-            ("ALTER TABLE devices ADD COLUMN friendly_name TEXT;", "friendly_name column"),
-            ("ALTER TABLE devices ADD COLUMN is_online INTEGER DEFAULT 1;", "is_online column"),
-            ("ALTER TABLE devices ADD COLUMN operating_system TEXT DEFAULT 'Unknown';", "operating_system column"),
-            ("ALTER TABLE devices ADD COLUMN confidence_score INTEGER DEFAULT 0;", "confidence_score column"),
+            (
+                "ALTER TABLE devices ADD COLUMN vendor TEXT DEFAULT 'Unknown';",
+                "vendor column",
+            ),
+            (
+                "ALTER TABLE devices ADD COLUMN friendly_name TEXT;",
+                "friendly_name column",
+            ),
+            (
+                "ALTER TABLE devices ADD COLUMN is_online INTEGER DEFAULT 1;",
+                "is_online column",
+            ),
+            (
+                "ALTER TABLE devices ADD COLUMN operating_system TEXT DEFAULT 'Unknown';",
+                "operating_system column",
+            ),
+            (
+                "ALTER TABLE devices ADD COLUMN confidence_score INTEGER DEFAULT 0;",
+                "confidence_score column",
+            ),
         ]
 
         for query, desc in migrations:

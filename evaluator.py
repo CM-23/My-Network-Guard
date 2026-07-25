@@ -73,7 +73,10 @@ def resolve_hostname_async(mac_address: str, ip: str) -> None:
             hostname = f"Device-{suffix}"
 
         logger.info(f"Resolved hostname for {ip} / {mac_address} -> {hostname}")
-        database.execute_write_async("UPDATE devices SET hostname = ? WHERE mac_address = ?", (hostname, mac_address))
+        database.execute_write_async(
+            "UPDATE devices SET hostname = ? WHERE mac_address = ?",
+            (hostname, mac_address),
+        )
 
     _resolver_pool.submit(lookup)
 
@@ -89,7 +92,10 @@ def start_evaluator(packet_queue: queue.Queue, config: dict) -> None:
     _shutdown_event.clear()
 
     _evaluator_thread = threading.Thread(
-        target=_evaluator_worker, args=(packet_queue,), name="EvaluatorThread", daemon=True
+        target=_evaluator_worker,
+        args=(packet_queue,),
+        name="EvaluatorThread",
+        daemon=True,
     )
     _evaluator_thread.start()
     logger.info("Evaluator worker thread started.")

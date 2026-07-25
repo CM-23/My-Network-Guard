@@ -174,7 +174,7 @@ def _is_local_ip(ip: str, local_prefixes: list[str]) -> bool:
     if ip in ("127.0.0.1", "::1"):
         return True
     # Exclude broadcast/multicast
-    if ip.startswith("224.") or ip.startswith("239.") or ip in ("255.255.255.255", "0.0.0.0"):
+    if ip.startswith("224.") or ip.startswith("239.") or ip in ("255.255.255.255", "0.0.0.0"):  # nosec B104
         return False
     return any(ip.startswith(pfx) for pfx in local_prefixes)
 

@@ -37,7 +37,8 @@ class TestProjectSecurity(unittest.TestCase):
 
         self.test_queue = queue.Queue()
         flask_app.set_app_config(
-            {"telegram": {"bot_token": ""}, "root_user": {"name": "", "phone": ""}}, self.test_queue
+            {"telegram": {"bot_token": ""}, "root_user": {"name": "", "phone": ""}},
+            self.test_queue,
         )
 
     def tearDown(self):
@@ -95,7 +96,9 @@ class TestProjectSecurity(unittest.TestCase):
 
         # Localhost loopback URL
         response = self.client.post(
-            "/api/notify/webhook", json={"url": "http://127.0.0.1:8500/webhook"}, headers=headers
+            "/api/notify/webhook",
+            json={"url": "http://127.0.0.1:8500/webhook"},
+            headers=headers,
         )
         self.assertEqual(response.status_code, 400)
         # Check SSRF is blocked (message may say "loopback" or "unsafe webhook URL")
@@ -104,13 +107,17 @@ class TestProjectSecurity(unittest.TestCase):
 
         # Link-local URL (AWS metadata endpoint)
         response = self.client.post(
-            "/api/notify/webhook", json={"url": "http://169.254.169.254/latest/meta-data/"}, headers=headers
+            "/api/notify/webhook",
+            json={"url": "http://169.254.169.254/latest/meta-data/"},
+            headers=headers,
         )
         self.assertEqual(response.status_code, 400)
 
         # Safe URL (Mock public webhook)
         response = self.client.post(
-            "/api/notify/webhook", json={"url": "https://discord.com/api/webhooks/mock"}, headers=headers
+            "/api/notify/webhook",
+            json={"url": "https://discord.com/api/webhooks/mock"},
+            headers=headers,
         )
         # Note: discord.com might resolve asynchronously; in tests if network is isolated it might return 400 because name resolution fails.
         # But if it resolves successfully, it returns 200. Let's make sure it doesn't fail with loopback checks.
@@ -122,25 +129,37 @@ class TestProjectSecurity(unittest.TestCase):
         headers = {"X-Session-Token": "sec_token"}
 
         # 1. SSID connect length limit (>32)
-        response = self.client.post("/api/wifi/connect", json={"ssid": "A" * 33, "password": "pass"}, headers=headers)
+        response = self.client.post(
+            "/api/wifi/connect",
+            json={"ssid": "A" * 33, "password": "pass"},
+            headers=headers,
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("SSID is too long", json.loads(response.data)["message"])
 
         # 2. Friendly rename limit (>64)
-        response = self.client.post("/api/devices/00:11:22:33:44:55/rename", json={"name": "B" * 65}, headers=headers)
+        response = self.client.post(
+            "/api/devices/00:11:22:33:44:55/rename",
+            json={"name": "B" * 65},
+            headers=headers,
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Name is too long", json.loads(response.data)["message"])
 
         # 3. Phone number format validation
         response = self.client.post(
-            "/api/root-user/setup", json={"name": "Admin", "phone": "abc-invalid-123"}, headers=headers
+            "/api/root-user/setup",
+            json={"name": "Admin", "phone": "abc-invalid-123"},
+            headers=headers,
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid phone number format", json.loads(response.data)["message"])
 
         # 4. Telegram bot token format validation
         response = self.client.post(
-            "/api/telegram/config", json={"bot_token": "invalid_token_no_colon"}, headers=headers
+            "/api/telegram/config",
+            json={"bot_token": "invalid_token_no_colon"},
+            headers=headers,
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Invalid Telegram bot token format", json.loads(response.data)["message"])

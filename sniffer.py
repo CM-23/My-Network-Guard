@@ -137,7 +137,9 @@ def _simulation_worker(packet_queue):
             import random
 
             mac_suffix = (
-                f"{random.randint(0x10, 0xef):02x}:{random.randint(0x10, 0xef):02x}:{random.randint(0x10, 0xef):02x}"
+                f"{random.randint(0x10, 0xef):02x}:"
+                f"{random.randint(0x10, 0xef):02x}:"
+                f"{random.randint(0x10, 0xef):02x}"
             )
             mac = f"00:23:29:{mac_suffix}"
             ip = f"192.168.1.{random.randint(100, 200)}"
@@ -360,7 +362,10 @@ def start_sniffer(packet_queue, interface=None, simulation_mode=False):
         _diagnostics["active_arp_disabled_reason"] = "N/A (Simulation Mode)"
         logger.info("[INFO] Simulation mode enabled. Showing simulated devices only.")
         _sniffer_thread = threading.Thread(
-            target=_simulation_worker, args=(packet_queue,), name="SimulationSnifferThread", daemon=True
+            target=_simulation_worker,
+            args=(packet_queue,),
+            name="SimulationSnifferThread",
+            daemon=True,
         )
         _sniffer_thread.start()
         return
@@ -382,7 +387,10 @@ def start_sniffer(packet_queue, interface=None, simulation_mode=False):
         _diagnostics["active_arp_disabled_reason"] = "Scapy not installed"
         logger.warning("Scapy unavailable. Device discovery will rely on system ARP cache only.")
         _sniffer_thread = threading.Thread(
-            target=_arp_cache_worker, args=(packet_queue,), name="ArpCacheThread", daemon=True
+            target=_arp_cache_worker,
+            args=(packet_queue,),
+            name="ArpCacheThread",
+            daemon=True,
         )
         _sniffer_thread.start()
         return
@@ -409,7 +417,10 @@ def start_sniffer(packet_queue, interface=None, simulation_mode=False):
         _diagnostics["active_arp_disabled_reason"] = ""
         logger.info(f"Active scan verified on interface: {interface}")
         _arp_scan_thread = threading.Thread(
-            target=_active_arp_scanner, args=(packet_queue, interface), name="ActiveARPScanner", daemon=True
+            target=_active_arp_scanner,
+            args=(packet_queue, interface),
+            name="ActiveARPScanner",
+            daemon=True,
         )
         _arp_scan_thread.start()
     else:
@@ -421,13 +432,19 @@ def start_sniffer(packet_queue, interface=None, simulation_mode=False):
 
         # Standard user fallback: run both passive sniffer AND the ARP cache reader
         _arp_scan_thread = threading.Thread(
-            target=_arp_cache_worker, args=(packet_queue,), name="ArpCacheThread", daemon=True
+            target=_arp_cache_worker,
+            args=(packet_queue,),
+            name="ArpCacheThread",
+            daemon=True,
         )
         _arp_scan_thread.start()
 
     # Passive Sniffer Thread
     _sniffer_thread = threading.Thread(
-        target=_passive_sniffer_worker, args=(packet_queue, interface), name="PassiveSnifferThread", daemon=True
+        target=_passive_sniffer_worker,
+        args=(packet_queue, interface),
+        name="PassiveSnifferThread",
+        daemon=True,
     )
     _sniffer_thread.start()
 
@@ -558,7 +575,8 @@ def _run_arp_scan(packet_queue, interface=None):
 
             placeholders = ",".join("?" for _ in responded_macs)
             database.execute_write_async(
-                f"UPDATE devices SET is_online = 0 WHERE mac_address NOT IN ({placeholders})", tuple(responded_macs)
+                f"UPDATE devices SET is_online = 0 WHERE mac_address NOT IN ({placeholders})",  # nosec B608
+                tuple(responded_macs),
             )
 
     except Exception as e:
@@ -807,7 +825,8 @@ def _arp_cache_worker(packet_queue):
 
                 placeholders = ",".join("?" for _ in responded_macs)
                 database.execute_write_async(
-                    f"UPDATE devices SET is_online = 0 WHERE mac_address NOT IN ({placeholders})", tuple(responded_macs)
+                    f"UPDATE devices SET is_online = 0 WHERE mac_address NOT IN ({placeholders})",  # nosec B608
+                    tuple(responded_macs),
                 )
 
         except Exception as e:

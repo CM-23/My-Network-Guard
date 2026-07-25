@@ -27,7 +27,10 @@ from app import app, set_app_config
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("nids.log", encoding="utf-8")],
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("nids.log", encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger("Main")
 
@@ -142,7 +145,8 @@ def purge_worker_loop():
             break
         try:
             database.execute_write_async(
-                "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)", (f"-{days} days",)
+                "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)",
+                (f"-{days} days",),
             )
             logger.info("Scheduled log purge complete.")
         except Exception as e:
@@ -183,10 +187,24 @@ def main():
     parser = argparse.ArgumentParser(description="Network Scanner — Your devices guard")
     parser.add_argument("-i", "--interface", help="Network interface (e.g. eth0, wlan0)")
     parser.add_argument("-s", "--simulation", action="store_true", help="Force simulation mode")
-    parser.add_argument("-p", "--port", type=int, default=None, help="Dashboard port (default: 5000 or $PORT env)")
-    parser.add_argument("--host", default=None, help="Bind host (default: 0.0.0.0 for Render, 127.0.0.1 locally)")
+    parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        default=None,
+        help="Dashboard port (default: 5000 or $PORT env)",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Bind host (default: 0.0.0.0 for Render, 127.0.0.1 locally)",
+    )
     parser.add_argument("--db", default="nids.db", help="SQLite database path")
-    parser.add_argument("--confirm-owner", action="store_true", help="Confirm network ownership or authorization")
+    parser.add_argument(
+        "--confirm-owner",
+        action="store_true",
+        help="Confirm network ownership or authorization",
+    )
     args = parser.parse_args()
 
     # Guardrail Check: Target network monitoring authorization
@@ -218,7 +236,7 @@ def main():
     # ── Render / cloud hosting compatibility ──
     # Render sets PORT env variable; also bind to 0.0.0.0 for public access
     port = args.port or int(os.environ.get("PORT", 5000))
-    host = args.host or os.environ.get("HOST", "0.0.0.0")
+    host = args.host or os.environ.get("HOST", "0.0.0.0")  # nosec B104
 
     signal.signal(signal.SIGINT, shutdown_system)
     signal.signal(signal.SIGTERM, shutdown_system)
@@ -248,7 +266,7 @@ def main():
     _purge_thread.start()
 
     logger.info(f"Network Scanner starting on http://{host}:{port}/")
-    if host == "0.0.0.0":
+    if host == "0.0.0.0":  # nosec B104
         logger.info("Publicly accessible — suitable for Render/cloud deployment.")
 
     try:

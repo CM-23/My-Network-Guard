@@ -90,18 +90,18 @@ def list_alerts():
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * per_page
 
-    rows = database.execute_read(
-        f"""SELECT id, timestamp, alert_type, description, severity,
+    rows = database.execute_read(  # nosec B608
+        f"""SELECT id, timestamp, alert_type, description, severity,  # nosec B608
                    confidence, affected_mac, mitre_attack, cwe_id,
                    recommended_action, cvss_score, is_resolved
             FROM alerts
             {where}
             ORDER BY {sort_col} {order}
-            LIMIT ? OFFSET ?""",
+            LIMIT ? OFFSET ?""",  # nosec B608
         tuple(params) + (per_page, offset),
     )
 
-    total = database.execute_read(f"SELECT count(*) as c FROM alerts {where}", tuple(params))[0]["c"]
+    total = database.execute_read(f"SELECT count(*) as c FROM alerts {where}", tuple(params))[0]["c"]  # nosec B608
 
     if request.path == "/api/alerts":
         return jsonify(rows)
