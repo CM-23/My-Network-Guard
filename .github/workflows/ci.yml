@@ -196,7 +196,7 @@ jobs:
             -e SIMULATION_MODE=true \
             -e CONFIRM_OWNER=true \
             my-network-guard:ci
-          sleep 20
+          sleep 40
           docker exec test-container python -c "
           import urllib.request, sys
           try:
