@@ -88,11 +88,11 @@ def diagnostics():
     health = {
         "npcap": {
             "status": _status(diag["npcap_installed"]),
-            "detail": ("Npcap detected" if diag["npcap_installed"] else "Npcap not installed — install from npcap.com"),
+            "detail": "Npcap detected" if diag["npcap_installed"] else "Npcap not installed — install from npcap.com",
         },
         "scapy": {
             "status": _status(sniffer.scapy_available),
-            "detail": ("Scapy ready" if sniffer.scapy_available else "Scapy not installed"),
+            "detail": "Scapy ready" if sniffer.scapy_available else "Scapy not installed",
         },
         "database": {
             "status": _status(db_ok),
@@ -115,11 +115,11 @@ def diagnostics():
             "detail": sniffer.get_scan_mode(),
         },
         "interface": {
-            "status": ("ok" if diag["current_interface"] not in ("Unknown", "Auto-detected") else "warn"),
+            "status": "ok" if diag["current_interface"] not in ("Unknown", "Auto-detected") else "warn",
             "detail": diag["current_interface"],
         },
         "gateway": {
-            "status": ("ok" if diag["gateway"] and diag["gateway"] != "Unknown" else "warn"),
+            "status": "ok" if diag["gateway"] and diag["gateway"] != "Unknown" else "warn",
             "detail": diag["gateway"] or "Unknown",
         },
         "backend": {
@@ -173,8 +173,7 @@ def status():
     scope = request.args.get("scope", "current")
     if scope == "current" and prefix:
         device_count = database.execute_read(
-            "SELECT count(*) as c FROM devices WHERE last_known_ip LIKE ? AND deleted_at IS NULL",
-            (f"{prefix}%",),
+            "SELECT count(*) as c FROM devices WHERE last_known_ip LIKE ? AND deleted_at IS NULL", (f"{prefix}%",)
         )[0]["c"]
     else:
         device_count = database.execute_read("SELECT count(*) as c FROM devices WHERE deleted_at IS NULL")[0]["c"]

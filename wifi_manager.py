@@ -32,7 +32,7 @@ def get_gateway_ip():
     try:
         if _OS == "Windows":
             local_ip = get_local_ip()
-            out = subprocess.check_output("ipconfig", shell=True).decode(errors="ignore")  # nosec
+            out = subprocess.check_output("ipconfig", shell=True).decode(errors="ignore")
             # Scope the search to the adapter block that contains our active local IP,
             # otherwise a stale/disconnected adapter's gateway can be picked up instead.
             blocks = re.split(r"\r?\n\r?\n", out)
@@ -46,7 +46,7 @@ def get_gateway_ip():
                             if ip and _is_valid_ip(ip):
                                 return ip
         else:
-            out = subprocess.check_output("ip route show default", shell=True).decode(errors="ignore")  # nosec
+            out = subprocess.check_output("ip route show default", shell=True).decode(errors="ignore")
             # e.g. "default via 192.168.1.1 dev wlan0"
             match = re.search(r"default via (\d+\.\d+\.\d+\.\d+)", out)
             if match:
@@ -87,7 +87,7 @@ def get_current_ssid():
     """Returns the SSID of the currently connected WiFi network."""
     try:
         if _OS == "Windows":
-            out = subprocess.check_output("netsh wlan show interfaces", shell=True).decode(errors="ignore")  # nosec
+            out = subprocess.check_output("netsh wlan show interfaces", shell=True).decode(errors="ignore")
             for line in out.splitlines():
                 if "SSID" in line and "BSSID" not in line:
                     parts = line.split(":")
@@ -96,14 +96,12 @@ def get_current_ssid():
                         if ssid:
                             return ssid
         elif _OS == "Linux":
-            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi", shell=True).decode(
-                errors="ignore"
-            )  # nosec
+            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi", shell=True).decode(errors="ignore")
             for line in out.splitlines():
                 if line.startswith("yes:"):
                     return line.split(":", 1)[1].strip()
         elif _OS == "Darwin":
-            out = subprocess.check_output(  # nosec
+            out = subprocess.check_output(
                 "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I",
                 shell=True,
             ).decode(errors="ignore")
@@ -122,7 +120,7 @@ def get_network_status():
     gateway = get_gateway_ip()
 
     # Auto-detect connection: if we have a valid non-loopback IP, we are connected to a network!
-    connected = local_ip not in (None, "127.0.0.1", "0.0.0.0", "")  # nosec B104
+    connected = local_ip not in (None, "127.0.0.1", "0.0.0.0", "")
 
     if connected and not ssid:
         ssid = "Active Network"
@@ -147,17 +145,15 @@ def scan_networks():
     networks = []
     try:
         if _OS == "Windows":
-            out = subprocess.check_output("netsh wlan show networks mode=bssid", shell=True).decode(
-                errors="ignore"
-            )  # nosec
+            out = subprocess.check_output("netsh wlan show networks mode=bssid", shell=True).decode(errors="ignore")
             networks = _parse_netsh_networks(out)
         elif _OS == "Linux":
-            out = subprocess.check_output(
-                "nmcli -t -f SSID,SIGNAL,SECURITY,BSSID dev wifi", shell=True  # nosec
-            ).decode(errors="ignore")
+            out = subprocess.check_output("nmcli -t -f SSID,SIGNAL,SECURITY,BSSID dev wifi", shell=True).decode(
+                errors="ignore"
+            )
             networks = _parse_nmcli_networks(out)
         elif _OS == "Darwin":
-            out = subprocess.check_output(  # nosec
+            out = subprocess.check_output(
                 "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s",
                 shell=True,
             ).decode(errors="ignore")
@@ -345,11 +341,7 @@ def connect_to_wifi(ssid, password):
         elif _OS == "Darwin":
             return _connect_macos(ssid, password)
         else:
-            return {
-                "success": False,
-                "status": "UNSUPPORTED_SECURITY",
-                "message": f"Unsupported OS: {_OS}",
-            }
+            return {"success": False, "status": "UNSUPPORTED_SECURITY", "message": f"Unsupported OS: {_OS}"}
     except Exception as e:
         logger.error(f"WiFi connection error: {e}")
         return {"success": False, "status": "TIMEOUT", "message": str(e)}
@@ -363,7 +355,7 @@ def _detect_security_type(ssid):
             if net["ssid"] == ssid:
                 return net.get("security_type", "WPA2-Personal")
     except Exception:
-        pass  # nosec B110
+        pass
     return "WPA2-Personal"
 
 
@@ -442,11 +434,8 @@ def _connect_windows(ssid, password):
             f.write(profile_xml)
 
         # Step 2: Add profile
-        add_result = subprocess.run(  # nosec
-            ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
-            capture_output=True,
-            text=True,
-            timeout=10,
+        add_result = subprocess.run(
+            ["netsh", "wlan", "add", "profile", f"filename={profile_path}"], capture_output=True, text=True, timeout=10
         )
         if add_result.returncode != 0:
             logger.error(f"netsh add profile failed: {add_result.stdout} {add_result.stderr}")
@@ -461,12 +450,7 @@ def _connect_windows(ssid, password):
             }
 
         # Step 3: Connect
-        subprocess.run(  # nosec
-            ["netsh", "wlan", "connect", f"name={ssid}"],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        subprocess.run(["netsh", "wlan", "connect", f"name={ssid}"], capture_output=True, text=True, timeout=15)
 
         # Wait up to 8 seconds and check connection
         import time
@@ -475,11 +459,7 @@ def _connect_windows(ssid, password):
             time.sleep(1.0)
             status = get_network_status()
             if status["connected"] and status["ssid"] == ssid:
-                return {
-                    "success": True,
-                    "status": "CONNECTED",
-                    "message": f"Connected to {ssid} successfully.",
-                }
+                return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
 
         # If not connected, assume wrong password or timeout
         return {
@@ -493,7 +473,7 @@ def _connect_windows(ssid, password):
             if os.path.exists(profile_path):
                 os.remove(profile_path)
         except Exception:
-            pass  # nosec B110
+            pass
 
 
 def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profile_path):
@@ -526,11 +506,8 @@ def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profi
     with open(profile_path, "w", encoding="utf-8") as f:
         f.write(profile_xml)
 
-    add_result = subprocess.run(  # nosec
-        ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
-        capture_output=True,
-        text=True,
-        timeout=10,
+    add_result = subprocess.run(
+        ["netsh", "wlan", "add", "profile", f"filename={profile_path}"], capture_output=True, text=True, timeout=10
     )
     if add_result.returncode != 0:
         return {
@@ -541,12 +518,7 @@ def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profi
             ),
         }
 
-    subprocess.run(  # nosec
-        ["netsh", "wlan", "connect", f"name={ssid}"],
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
+    subprocess.run(["netsh", "wlan", "connect", f"name={ssid}"], capture_output=True, text=True, timeout=15)
 
     import time
 
@@ -554,11 +526,7 @@ def _connect_windows_fallback_wpa2(ssid, password, ssid_esc, password_esc, profi
         time.sleep(1.0)
         status = get_network_status()
         if status["connected"] and status["ssid"] == ssid:
-            return {
-                "success": True,
-                "status": "CONNECTED",
-                "message": f"Connected to {ssid} successfully.",
-            }
+            return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
     return {
         "success": False,
         "status": "WRONG_PASSWORD",
@@ -575,26 +543,14 @@ def _connect_linux(ssid, password):
         # so omit the password argument entirely.
         cmd = ["nmcli", "dev", "wifi", "connect", ssid]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)  # nosec
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     output = (result.stdout + result.stderr).lower()
     if result.returncode == 0 or "successfully activated" in output:
-        return {
-            "success": True,
-            "status": "CONNECTED",
-            "message": f"Connected to {ssid} successfully.",
-        }
+        return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
     elif "secrets were required" in output or "authorization" in output or "password" in output:
-        return {
-            "success": False,
-            "status": "WRONG_PASSWORD",
-            "message": "Incorrect password.",
-        }
+        return {"success": False, "status": "WRONG_PASSWORD", "message": "Incorrect password."}
     elif "timeout" in output:
-        return {
-            "success": False,
-            "status": "TIMEOUT",
-            "message": "Connection timed out.",
-        }
+        return {"success": False, "status": "TIMEOUT", "message": "Connection timed out."}
     else:
         return {
             "success": False,
@@ -605,24 +561,13 @@ def _connect_linux(ssid, password):
 
 def _connect_macos(ssid, password):
     """Connect to WiFi on macOS using networksetup."""
-    result = subprocess.run(  # nosec
-        ["networksetup", "-setairportnetwork", "en0", ssid, password],
-        capture_output=True,
-        text=True,
-        timeout=20,
+    result = subprocess.run(
+        ["networksetup", "-setairportnetwork", "en0", ssid, password], capture_output=True, text=True, timeout=20
     )
     if result.returncode == 0:
-        return {
-            "success": True,
-            "status": "CONNECTED",
-            "message": f"Connected to {ssid} successfully.",
-        }
+        return {"success": True, "status": "CONNECTED", "message": f"Connected to {ssid} successfully."}
     else:
-        return {
-            "success": False,
-            "status": "WRONG_PASSWORD",
-            "message": result.stderr.strip() or "Connection failed.",
-        }
+        return {"success": False, "status": "WRONG_PASSWORD", "message": result.stderr.strip() or "Connection failed."}
 
 
 # ─────────────────────────────────────────

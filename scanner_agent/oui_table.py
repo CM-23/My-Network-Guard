@@ -12,6 +12,8 @@ To keep this table current, run:
     python scripts/update_oui.py  (fetches from https://maclookup.app/downloads/json-database)
 """
 
+from typing import Optional
+
 
 def resolve_mac_vendor(mac_address: str) -> str:
     """
@@ -518,6 +520,7 @@ _OUI_TABLE: dict[str, str] = {
     "54:a7:03": "TP-Link",
     "64:70:02": "TP-Link",
     "6c:19:8f": "TP-Link",
+    "70:4f:57": "TP-Link",
     "78:44:fd": "TP-Link",
     "80:8f:1d": "TP-Link",
     "88:25:93": "TP-Link",
@@ -568,6 +571,7 @@ _OUI_TABLE: dict[str, str] = {
     "c0:c1:c0": "Netgear",
     "e0:46:9a": "Netgear",
     "e0:91:f5": "Netgear",
+    "20:e5:2a": "Netgear",
     # ── HP ─────────────────────────────────────────────────────────────────────
     "00:08:02": "HP",
     "00:0f:20": "HP",
@@ -678,6 +682,7 @@ _OUI_TABLE: dict[str, str] = {
     "80:1f:02": "ASUS",
     "84:a9:c4": "ASUS",
     "88:d7:f6": "ASUS",
+    "90:e6:ba": "ASUS",
     "ac:22:0b": "ASUS",
     "b0:6e:bf": "ASUS",
     "bc:ae:c5": "ASUS",
@@ -735,6 +740,7 @@ _OUI_TABLE: dict[str, str] = {
     "00:22:6b": "Linksys",
     "00:23:69": "Linksys",
     "00:25:9c": "Linksys",
+    "c0:c1:c0": "Linksys",
     # ── Amazon / Alexa / Ring ─────────────────────────────────────────────────
     "00:bb:3a": "Amazon",
     "04:f0:21": "Amazon",
@@ -828,6 +834,7 @@ _OUI_TABLE: dict[str, str] = {
     "18:b4:30": "Nest",
     "64:16:66": "Nest",
     "64:d2:c4": "Nest",
+    "18:b4:30": "Google Nest",
     # ── Ubiquiti Networks ─────────────────────────────────────────────────────
     "00:15:6d": "Ubiquiti",
     "00:27:22": "Ubiquiti",
@@ -880,6 +887,7 @@ _OUI_TABLE: dict[str, str] = {
     "00:22:19": "Dell",
     "00:23:ae": "Dell",
     "00:24:e8": "Dell",
+    "00:25:64": "Dell",
     "00:26:b9": "Dell",
     "18:03:73": "Dell",
     "18:66:da": "Dell",
@@ -889,19 +897,23 @@ _OUI_TABLE: dict[str, str] = {
     "34:17:eb": "Dell",
     "34:e6:d7": "Dell",
     "44:a8:42": "Dell",
+    "4c:ed:fb": "Dell",
     "50:9a:4c": "Dell",
     "5c:26:0a": "Dell",
     "78:2b:cb": "Dell",
     "84:8f:69": "Dell",
     "8c:8d:28": "Dell",
+    "90:b1:1c": "Dell",
     "a4:1f:72": "Dell",
     "b0:83:fe": "Dell",
     "b8:ac:6f": "Dell",
     "bc:30:5b": "Dell",
     "c8:1f:66": "Dell",
     "d4:ae:52": "Dell",
+    "d4:be:d9": "Dell",
     "e4:f0:42": "Dell",
     "f0:1f:af": "Dell",
+    "f4:8e:38": "Dell",
     "f8:db:88": "Dell",
     # ── Lenovo ────────────────────────────────────────────────────────────────
     "00:21:97": "Lenovo",
@@ -914,5 +926,6 @@ _OUI_TABLE: dict[str, str] = {
     "90:7a:f1": "Lenovo",
     "a4:4c:11": "Lenovo",
     "b4:6b:fc": "Lenovo",
+    "c8:5b:76": "Lenovo",
     "d0:37:45": "Lenovo",
 }

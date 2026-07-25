@@ -38,10 +38,7 @@ devices_bp = Blueprint("devices", __name__)
 def _get_device_or_404(mac: str) -> dict:
     """Fetch a device by MAC or raise NotFoundError."""
     mac_clean = mac.lower()
-    rows = database.execute_read(
-        "SELECT * FROM devices WHERE mac_address = ? AND deleted_at IS NULL",
-        (mac_clean,),
-    )
+    rows = database.execute_read("SELECT * FROM devices WHERE mac_address = ? AND deleted_at IS NULL", (mac_clean,))
     if not rows:
         raise NotFoundError(f"Device '{mac}' not found.")
     return rows[0]
@@ -84,15 +81,7 @@ def list_devices():
     per_page = min(500, max(1, int(request.args.get("per_page", 200))))
 
     # Validate sort column (whitelist to prevent SQL injection)
-    allowed_sorts = {
-        "last_seen",
-        "first_seen",
-        "hostname",
-        "last_known_ip",
-        "risk_score",
-        "vendor",
-        "device_type",
-    }
+    allowed_sorts = {"last_seen", "first_seen", "hostname", "last_known_ip", "risk_score", "vendor", "device_type"}
     if sort_col not in allowed_sorts:
         sort_col = "last_seen"
     order = "DESC" if order == "desc" else "ASC"
@@ -120,21 +109,19 @@ def list_devices():
     where = " AND ".join(conditions)
     offset = (page - 1) * per_page
 
-    rows = database.execute_read(  # nosec B608
-        f"""SELECT mac_address, last_known_ip, hostname, friendly_name, vendor,  # nosec B608
+    rows = database.execute_read(
+        f"""SELECT mac_address, last_known_ip, hostname, friendly_name, vendor,
                    is_online, device_type, operating_system, confidence_score,
                    risk_score, is_whitelisted, is_blacklisted, first_seen, last_seen
             FROM devices
             WHERE {where}
             ORDER BY {sort_col} {order}
-            LIMIT ? OFFSET ?""",  # nosec B608
+            LIMIT ? OFFSET ?""",
         tuple(params) + (per_page, offset),
     )
 
     # Total count for pagination
-    total = database.execute_read(f"SELECT count(*) as c FROM devices WHERE {where}", tuple(params))[0][
-        "c"
-    ]  # nosec B608
+    total = database.execute_read(f"SELECT count(*) as c FROM devices WHERE {where}", tuple(params))[0]["c"]
 
     for row in rows:
         row["network_hint"] = _network_hint(row.get("last_known_ip", ""))
@@ -186,8 +173,7 @@ def patch_device(mac: str):
         _get_device_or_404(mac_clean)
 
         database.execute_write_sync(
-            "UPDATE devices SET friendly_name = ? WHERE mac_address = ?",
-            (friendly_name, mac_clean),
+            "UPDATE devices SET friendly_name = ? WHERE mac_address = ?", (friendly_name, mac_clean)
         )
         database.record_audit(
             action="RENAME_DEVICE",
@@ -215,10 +201,7 @@ def rename_device(mac: str):
         name = validate_friendly_name(data.get("name", ""))
 
         _get_device_or_404(mac_clean)
-        database.execute_write_sync(
-            "UPDATE devices SET friendly_name = ? WHERE mac_address = ?",
-            (name, mac_clean),
-        )
+        database.execute_write_sync("UPDATE devices SET friendly_name = ? WHERE mac_address = ?", (name, mac_clean))
         database.record_audit(
             action="RENAME_DEVICE",
             entity="devices",
@@ -246,8 +229,7 @@ def delete_device(mac: str):
 
         # Soft delete — preserve history
         database.execute_write_sync(
-            "UPDATE devices SET deleted_at = CURRENT_TIMESTAMP WHERE mac_address = ?",
-            (mac_clean,),
+            "UPDATE devices SET deleted_at = CURRENT_TIMESTAMP WHERE mac_address = ?", (mac_clean,)
         )
         database.record_audit(
             action="DELETE_DEVICE",
@@ -272,8 +254,7 @@ def whitelist_device(mac: str):
         mac_clean = validate_mac(mac)
         _get_device_or_404(mac_clean)
         database.execute_write_sync(
-            "UPDATE devices SET is_whitelisted=1, is_blacklisted=0 WHERE mac_address=?",
-            (mac_clean,),
+            "UPDATE devices SET is_whitelisted=1, is_blacklisted=0 WHERE mac_address=?", (mac_clean,)
         )
         return jsonify({"success": True, "message": "Device whitelisted."})
     except (ValidationError, NotFoundError) as e:
@@ -287,8 +268,7 @@ def blacklist_device(mac: str):
         mac_clean = validate_mac(mac)
         _get_device_or_404(mac_clean)
         database.execute_write_sync(
-            "UPDATE devices SET is_blacklisted=1, is_whitelisted=0 WHERE mac_address=?",
-            (mac_clean,),
+            "UPDATE devices SET is_blacklisted=1, is_whitelisted=0 WHERE mac_address=?", (mac_clean,)
         )
         return jsonify({"success": True, "message": "Device blacklisted."})
     except (ValidationError, NotFoundError) as e:
@@ -320,8 +300,7 @@ def device_history(mac: str):
     try:
         mac_clean = validate_mac(mac)
         rows = database.execute_read(
-            "SELECT * FROM device_history WHERE mac_address = ? ORDER BY timestamp DESC LIMIT 100",
-            (mac_clean,),
+            "SELECT * FROM device_history WHERE mac_address = ? ORDER BY timestamp DESC LIMIT 100", (mac_clean,)
         )
         return jsonify(rows)
     except ValidationError as e:

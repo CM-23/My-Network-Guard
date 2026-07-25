@@ -212,56 +212,20 @@ def create_app() -> Flask:
 
     @app.errorhandler(404)
     def not_found(e):
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "NOT_FOUND",
-                    "message": "Resource not found.",
-                }
-            ),
-            404,
-        )
+        return jsonify({"success": False, "error": "NOT_FOUND", "message": "Resource not found."}), 404
 
     @app.errorhandler(405)
     def method_not_allowed(e):
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "METHOD_NOT_ALLOWED",
-                    "message": "Method not allowed.",
-                }
-            ),
-            405,
-        )
+        return jsonify({"success": False, "error": "METHOD_NOT_ALLOWED", "message": "Method not allowed."}), 405
 
     @app.errorhandler(429)
     def rate_limited(e):
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "RATE_LIMIT_EXCEEDED",
-                    "message": "Too many requests.",
-                }
-            ),
-            429,
-        )
+        return jsonify({"success": False, "error": "RATE_LIMIT_EXCEEDED", "message": "Too many requests."}), 429
 
     @app.errorhandler(500)
     def server_error(e):
         logger.error(f"Internal server error: {e}")
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "INTERNAL_ERROR",
-                    "message": "An internal error occurred.",
-                }
-            ),
-            500,
-        )
+        return jsonify({"success": False, "error": "INTERNAL_ERROR", "message": "An internal error occurred."}), 500
 
     return app
 

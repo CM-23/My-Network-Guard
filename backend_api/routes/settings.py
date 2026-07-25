@@ -158,8 +158,7 @@ def purge_logs():
     cfg = get_config()
     days = cfg.traffic_retention_days
     res = database.execute_write_sync(
-        "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)",
-        (f"-{days} days",),
+        "DELETE FROM traffic_logs WHERE last_active < DATETIME('now', ?)", (f"-{days} days",)
     )
     count = res.get("rowcount", 0)
     return jsonify({"success": True, "message": f"Purged {count} old flow logs."})

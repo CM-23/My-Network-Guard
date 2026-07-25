@@ -84,18 +84,16 @@ def traffic_logs():
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-    rows = database.execute_read(  # nosec B608
-        f"""SELECT source_ip, dest_ip, dest_port, protocol, packet_count, last_active  # nosec B608
+    rows = database.execute_read(
+        f"""SELECT source_ip, dest_ip, dest_port, protocol, packet_count, last_active
             FROM traffic_logs
             {where}
             ORDER BY packet_count DESC
-            LIMIT ? OFFSET ?""",  # nosec B608
+            LIMIT ? OFFSET ?""",
         tuple(params) + (per_page, offset),
     )
 
-    total = database.execute_read(f"SELECT count(*) as c FROM traffic_logs {where}", tuple(params))[0][
-        "c"
-    ]  # nosec B608
+    total = database.execute_read(f"SELECT count(*) as c FROM traffic_logs {where}", tuple(params))[0]["c"]
 
     return jsonify(
         {

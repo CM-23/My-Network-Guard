@@ -76,27 +76,11 @@ def require_session_token(f: Callable) -> Callable:
         expected = session.get("session_token", "")
 
         if not expected or not token:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Unauthorized: missing session token.",
-                    }
-                ),
-                403,
-            )
+            return jsonify({"success": False, "message": "Unauthorized: missing session token."}), 403
 
         # Constant-time comparison to prevent timing attacks
         if not secrets.compare_digest(token, expected):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "message": "Unauthorized: invalid session token.",
-                    }
-                ),
-                403,
-            )
+            return jsonify({"success": False, "message": "Unauthorized: invalid session token."}), 403
 
         return f(*args, **kwargs)
 
@@ -225,24 +209,13 @@ def require_auth(roles: Optional[list] = None) -> Callable:
 
             auth_header = request.headers.get("Authorization", "")
             if not auth_header.startswith("Bearer "):
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "message": "Authorization header missing or malformed.",
-                        }
-                    ),
-                    401,
-                )
+                return jsonify({"success": False, "message": "Authorization header missing or malformed."}), 401
 
             token = auth_header[7:]
             payload = _decode_jwt(token)
 
             if not payload:
-                return (
-                    jsonify({"success": False, "message": "Invalid or expired token."}),
-                    401,
-                )
+                return jsonify({"success": False, "message": "Invalid or expired token."}), 401
 
             user_role = payload.get("role", "viewer")
             if roles and user_role not in roles:

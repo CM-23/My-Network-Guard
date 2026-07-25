@@ -158,8 +158,7 @@ def _handle_update(update):
         if text.startswith("/start") and chat_id:
             logger.info(f"Auto-subscribing chat ID via Telegram /start: {chat_id}")
             database.execute_write_sync(
-                "INSERT OR IGNORE INTO telegram_subscribers (chat_id) VALUES (?)",
-                (str(chat_id),),
+                "INSERT OR IGNORE INTO telegram_subscribers (chat_id) VALUES (?)", (str(chat_id),)
             )
 
             _send_request(

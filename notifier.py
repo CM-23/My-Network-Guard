@@ -76,12 +76,7 @@ def update_webhook_url(url):
 
 def queue_alert(alert_type, description, severity, timestamp):
     """Enqueues an alert to be sent via webhook."""
-    alert_payload = {
-        "alert_type": alert_type,
-        "description": description,
-        "severity": severity,
-        "timestamp": timestamp,
-    }
+    alert_payload = {"alert_type": alert_type, "description": description, "severity": severity, "timestamp": timestamp}
     _notification_queue.put(alert_payload)
 
 
@@ -110,10 +105,7 @@ def _notifier_worker():
                 import telegram_client
 
                 telegram_client.send_alert_to_subscribers(
-                    alert["alert_type"],
-                    alert["description"],
-                    alert["severity"],
-                    alert["timestamp"],
+                    alert["alert_type"], alert["description"], alert["severity"], alert["timestamp"]
                 )
             except Exception as tg_ex:
                 logger.error(f"Error dispatching Telegram subscriber alerts: {tg_ex}")
@@ -134,11 +126,7 @@ def _notifier_worker():
 
                 if is_discord:
                     # Professional Discord embed
-                    color_map = {
-                        "HIGH": 15158332,
-                        "MEDIUM": 15105536,
-                        "LOW": 3066993,
-                    }  # Red  # Orange  # Green
+                    color_map = {"HIGH": 15158332, "MEDIUM": 15105536, "LOW": 3066993}  # Red  # Orange  # Green
                     color = color_map.get(alert["severity"], 3066993)
 
                     payload = {
@@ -150,16 +138,8 @@ def _notifier_worker():
                                 "description": alert["description"],
                                 "color": color,
                                 "fields": [
-                                    {
-                                        "name": "Severity",
-                                        "value": f"`{alert['severity']}`",
-                                        "inline": True,
-                                    },
-                                    {
-                                        "name": "Timestamp",
-                                        "value": alert["timestamp"],
-                                        "inline": True,
-                                    },
+                                    {"name": "Severity", "value": f"`{alert['severity']}`", "inline": True},
+                                    {"name": "Timestamp", "value": alert["timestamp"], "inline": True},
                                 ],
                                 "footer": {"text": "Localized Network Intrusion Detection System"},
                             }
