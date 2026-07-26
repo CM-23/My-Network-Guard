@@ -39,6 +39,8 @@ _resolver_pool = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_nam
 # Config parameters
 _config: dict = {}
 _threat_detector: Optional[ThreatDetector] = None
+_device_last_updated: dict[str, datetime] = {}
+_known_devices: set[str] = set()
 
 
 # ─── Helper wrappers (backward compatibility for test_heuristics.py) ──────────
@@ -125,6 +127,15 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
             if (now_dt - last_cleanup_time).total_seconds() > 300:
                 if _threat_detector:
                     _threat_detector.sweep_stale_state(max_age_minutes=10)
+
+                # Cleanup stale known devices cache
+                stale_macs = [
+                    mac for mac, last_upd in _device_last_updated.items() if (now_dt - last_upd).total_seconds() > 600
+                ]
+                for mac in stale_macs:
+                    del _device_last_updated[mac]
+                    _known_devices.discard(mac)
+
                 last_cleanup_time = now_dt
 
             # Ensure we have a proper PacketPayload object
@@ -165,7 +176,6 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 continue
 
             # ── 1. Device Discovery & Tracking ────────────────────────────────
-            device_record = database.execute_read("SELECT mac_address FROM devices WHERE mac_address = ?", (src_mac,))
             vendor = resolve_mac_vendor(src_mac)
 
             # Resolve fingerprint details
@@ -180,7 +190,16 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 ssdp_info=payload.ssdp_info,
             )
 
-            if not device_record:
+            is_known = src_mac in _known_devices
+            if not is_known:
+                device_record = database.execute_read(
+                    "SELECT mac_address FROM devices WHERE mac_address = ?", (src_mac,)
+                )
+                if device_record:
+                    is_known = True
+                    _known_devices.add(src_mac)
+
+            if not is_known:
                 # Use pre-resolved hostname or default
                 initial_hostname = resolved_hostname or f"Device-{src_mac.replace(':', '')[-6:]}"
 
@@ -223,41 +242,47 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 notifier.queue_alert(alert_type, description, severity, timestamp)
                 logger.info(f"New device registered: MAC {src_mac} / IP {src_ip}")
 
+                _known_devices.add(src_mac)
+                _device_last_updated[src_mac] = now_dt
+
             else:
-                # Update existing device record
-                if resolved_hostname:
-                    database.execute_write_async(
-                        """UPDATE devices SET last_known_ip = ?, last_seen = ?, hostname = ?,
-                                              vendor = ?, device_type = ?, operating_system = ?,
-                                              confidence_score = ?, is_online = 1
-                           WHERE mac_address = ?""",
-                        (
-                            src_ip,
-                            timestamp,
-                            resolved_hostname,
-                            vendor,
-                            fingerprint.device_type,
-                            fingerprint.operating_system,
-                            fingerprint.confidence,
-                            src_mac,
-                        ),
-                    )
-                else:
-                    database.execute_write_async(
-                        """UPDATE devices SET last_known_ip = ?, last_seen = ?, vendor = ?,
-                                              device_type = ?, operating_system = ?,
-                                              confidence_score = ?, is_online = 1
-                           WHERE mac_address = ?""",
-                        (
-                            src_ip,
-                            timestamp,
-                            vendor,
-                            fingerprint.device_type,
-                            fingerprint.operating_system,
-                            fingerprint.confidence,
-                            src_mac,
-                        ),
-                    )
+                # Throttle device record updates to max once per 30 seconds per device
+                if src_mac not in _device_last_updated or (now_dt - _device_last_updated[src_mac]).total_seconds() > 30:
+                    # Update existing device record
+                    if resolved_hostname:
+                        database.execute_write_async(
+                            """UPDATE devices SET last_known_ip = ?, last_seen = ?, hostname = ?,
+                                                  vendor = ?, device_type = ?, operating_system = ?,
+                                                  confidence_score = ?, is_online = 1
+                               WHERE mac_address = ?""",
+                            (
+                                src_ip,
+                                timestamp,
+                                resolved_hostname,
+                                vendor,
+                                fingerprint.device_type,
+                                fingerprint.operating_system,
+                                fingerprint.confidence,
+                                src_mac,
+                            ),
+                        )
+                    else:
+                        database.execute_write_async(
+                            """UPDATE devices SET last_known_ip = ?, last_seen = ?, vendor = ?,
+                                                  device_type = ?, operating_system = ?,
+                                                  confidence_score = ?, is_online = 1
+                               WHERE mac_address = ?""",
+                            (
+                                src_ip,
+                                timestamp,
+                                vendor,
+                                fingerprint.device_type,
+                                fingerprint.operating_system,
+                                fingerprint.confidence,
+                                src_mac,
+                            ),
+                        )
+                    _device_last_updated[src_mac] = now_dt
 
             # ── 2. Aggregated Traffic Logging ─────────────────────────────────
             if src_ip and dst_ip:

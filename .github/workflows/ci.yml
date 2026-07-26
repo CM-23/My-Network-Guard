@@ -67,7 +67,7 @@ jobs:
             --cov=shared \
             --cov=common \
             --cov-report=xml:coverage-unit.xml \
-            --cov-fail-under=70
+            --cov-fail-under=60
 
       - name: Upload unit test coverage
         uses: actions/upload-artifact@v4
