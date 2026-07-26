@@ -39,11 +39,12 @@ _counters: Dict[Tuple, List[float]] = defaultdict(list)
 
 
 def _get_client_ip() -> str:
-    """Extract the real client IP, respecting X-Forwarded-For behind proxies."""
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        # Take the first IP (client), not proxy IPs
-        return forwarded.split(",")[0].strip()
+    """
+    Extract the real client IP.
+    Note: If deployed behind a reverse proxy, Werkzeug's ProxyFix middleware
+    should be applied to the app. Manual parsing of X-Forwarded-For without
+    validating the trusted proxy IP allows rate limit spoofing.
+    """
     return request.remote_addr or "unknown"
 
 
