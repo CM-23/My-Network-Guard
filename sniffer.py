@@ -767,14 +767,14 @@ def _arp_cache_worker(packet_queue):
             import subprocess
 
             if pf.system() == "Windows":
-                out = subprocess.check_output("arp -a", shell=True).decode(errors="ignore")
+                out = subprocess.check_output(["arp", "-a"]).decode(errors="ignore")
                 # Windows: "  192.168.1.1        aa-bb-cc-dd-ee-ff    dynamic"
                 pattern = re.compile(
                     r"(\d+\.\d+\.\d+\.\d+)\s+([\da-fA-F]{2}[-:][\da-fA-F]{2}"
                     r"[-:][\da-fA-F]{2}[-:][\da-fA-F]{2}[-:][\da-fA-F]{2}[-:][\da-fA-F]{2})"
                 )
             else:
-                out = subprocess.check_output("arp -n", shell=True).decode(errors="ignore")
+                out = subprocess.check_output(["arp", "-n"]).decode(errors="ignore")
                 # Linux: "192.168.1.1  ether  aa:bb:cc:dd:ee:ff"
                 pattern = re.compile(r"(\d+\.\d+\.\d+\.\d+)\s+\S+\s+([\da-fA-F:]{17})")
 
