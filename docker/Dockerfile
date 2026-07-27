@@ -47,6 +47,7 @@ COPY --chown=appuser:appuser . .
 
 # Ensure Python packages on PATH for appuser
 ENV PATH="/home/appuser/.local/bin:${PATH}" \
+    PYTHONPATH="/home/appuser/.local/lib/python3.11/site-packages:${PYTHONPATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FLASK_ENV=production \
