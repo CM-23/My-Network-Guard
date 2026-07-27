@@ -34,7 +34,7 @@ MITRE ATT&CK: Multiple technique IDs mapped per detection.
 from __future__ import annotations
 
 import math
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
 from datetime import time as dt_time
 from typing import Any, Dict, List, Optional, Set
@@ -48,74 +48,72 @@ logger = get_logger("ThreatDetector")
 
 # ─── Safe Domain Whitelist ────────────────────────────────────────────────────
 
-_SAFE_DOMAIN_SUFFIXES: frozenset[str] = frozenset(
-    [
-        # Google
-        ".google.com",
-        ".googleapis.com",
-        ".gstatic.com",
-        ".googleusercontent.com",
-        ".googlevideo.com",
-        ".googlesyndication.com",
-        # Microsoft
-        ".microsoft.com",
-        ".windowsupdate.com",
-        ".live.com",
-        ".office.com",
-        ".office365.com",
-        ".windows.com",
-        ".azure.com",
-        ".windows.net",
-        ".microsoftonline.com",
-        ".sharepoint.com",
-        ".skype.com",
-        ".teams.microsoft.com",
-        # Apple
-        ".apple.com",
-        ".icloud.com",
-        ".mzstatic.com",
-        ".cdn-apple.com",
-        # Amazon / AWS
-        ".amazonaws.com",
-        ".aws.amazon.com",
-        ".cloudfront.net",
-        # CDN / Cloud
-        ".cloudflare.com",
-        ".cloudflare.net",
-        ".fastly.net",
-        ".akamai.net",
-        ".akamaiedge.net",
-        ".akamaitech.net",
-        ".akamaized.net",
-        ".edgesuite.net",
-        ".edgekey.net",
-        # GitHub
-        ".github.com",
-        ".githubusercontent.com",
-        ".githubassets.com",
-        # Meta / Facebook
-        ".facebook.com",
-        ".fbcdn.net",
-        ".instagram.com",
-        ".whatsapp.net",
-        # Other major CDNs
-        ".gws.com",
-        ".doubleclick.net",
-        ".ggpht.com",
-        ".ytimg.com",
-        ".googlevideo.com",
-        ".netflix.com",
-        ".nflximg.net",
-        # Local
-        ".local",
-        ".lan",
-        ".home",
-        ".arpa",
-        ".invalid",
-        ".localdomain",
-        ".internal",
-        ".corp",
-    ]
+_SAFE_DOMAIN_SUFFIXES: tuple[str, ...] = (
+    # Google
+    ".google.com",
+    ".googleapis.com",
+    ".gstatic.com",
+    ".googleusercontent.com",
+    ".googlevideo.com",
+    ".googlesyndication.com",
+    # Microsoft
+    ".microsoft.com",
+    ".windowsupdate.com",
+    ".live.com",
+    ".office.com",
+    ".office365.com",
+    ".windows.com",
+    ".azure.com",
+    ".windows.net",
+    ".microsoftonline.com",
+    ".sharepoint.com",
+    ".skype.com",
+    ".teams.microsoft.com",
+    # Apple
+    ".apple.com",
+    ".icloud.com",
+    ".mzstatic.com",
+    ".cdn-apple.com",
+    # Amazon / AWS
+    ".amazonaws.com",
+    ".aws.amazon.com",
+    ".cloudfront.net",
+    # CDN / Cloud
+    ".cloudflare.com",
+    ".cloudflare.net",
+    ".fastly.net",
+    ".akamai.net",
+    ".akamaiedge.net",
+    ".akamaitech.net",
+    ".akamaized.net",
+    ".edgesuite.net",
+    ".edgekey.net",
+    # GitHub
+    ".github.com",
+    ".githubusercontent.com",
+    ".githubassets.com",
+    # Meta / Facebook
+    ".facebook.com",
+    ".fbcdn.net",
+    ".instagram.com",
+    ".whatsapp.net",
+    # Other major CDNs
+    ".gws.com",
+    ".doubleclick.net",
+    ".ggpht.com",
+    ".ytimg.com",
+    ".googlevideo.com",
+    ".netflix.com",
+    ".nflximg.net",
+    # Local
+    ".local",
+    ".lan",
+    ".home",
+    ".arpa",
+    ".invalid",
+    ".localdomain",
+    ".internal",
+    ".corp",
 )
 
 _SAFE_DOMAIN_EXACT: frozenset[str] = frozenset(
@@ -155,16 +153,18 @@ def _is_safe_domain(domain: str) -> bool:
     d = domain.lower().rstrip(".")
     if d in _SAFE_DOMAIN_EXACT:
         return True
-    return any(d.endswith(suffix) for suffix in _SAFE_DOMAIN_SUFFIXES)
+    return d.endswith(_SAFE_DOMAIN_SUFFIXES)
 
 
 def _shannon_entropy(s: str) -> float:
     """Calculate Shannon Entropy (bits) of a string."""
     if not s:
         return 0.0
-    counts = Counter(s)
     length = len(s)
-    return -sum((c / length) * math.log2(c / length) for c in counts.values())
+    counts: Dict[str, int] = {}
+    for char in s:
+        counts[char] = counts.get(char, 0) + 1
+    return math.log2(length) - sum(c * math.log2(c) for c in counts.values()) / length
 
 
 def _is_local_ip(ip: str, local_prefixes: list[str]) -> bool:
@@ -176,7 +176,7 @@ def _is_local_ip(ip: str, local_prefixes: list[str]) -> bool:
     # Exclude broadcast/multicast
     if ip.startswith("224.") or ip.startswith("239.") or ip in ("255.255.255.255", "0.0.0.0"):
         return False
-    return any(ip.startswith(pfx) for pfx in local_prefixes)
+    return ip.startswith(tuple(local_prefixes))
 
 
 # ─── ThreatDetector class ────────────────────────────────────────────────────
