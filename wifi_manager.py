@@ -32,7 +32,7 @@ def get_gateway_ip():
     try:
         if _OS == "Windows":
             local_ip = get_local_ip()
-            out = subprocess.check_output("ipconfig", shell=True).decode(errors="ignore")
+            out = subprocess.check_output(["ipconfig"]).decode(errors="ignore")
             # Scope the search to the adapter block that contains our active local IP,
             # otherwise a stale/disconnected adapter's gateway can be picked up instead.
             blocks = re.split(r"\r?\n\r?\n", out)
@@ -46,7 +46,7 @@ def get_gateway_ip():
                             if ip and _is_valid_ip(ip):
                                 return ip
         else:
-            out = subprocess.check_output("ip route show default", shell=True).decode(errors="ignore")
+            out = subprocess.check_output(["ip", "route", "show", "default"]).decode(errors="ignore")
             # e.g. "default via 192.168.1.1 dev wlan0"
             match = re.search(r"default via (\d+\.\d+\.\d+\.\d+)", out)
             if match:
@@ -87,7 +87,7 @@ def get_current_ssid():
     """Returns the SSID of the currently connected WiFi network."""
     try:
         if _OS == "Windows":
-            out = subprocess.check_output("netsh wlan show interfaces", shell=True).decode(errors="ignore")
+            out = subprocess.check_output(["netsh", "wlan", "show", "interfaces"]).decode(errors="ignore")
             for line in out.splitlines():
                 if "SSID" in line and "BSSID" not in line:
                     parts = line.split(":")
@@ -96,14 +96,13 @@ def get_current_ssid():
                         if ssid:
                             return ssid
         elif _OS == "Linux":
-            out = subprocess.check_output("nmcli -t -f active,ssid dev wifi", shell=True).decode(errors="ignore")
+            out = subprocess.check_output(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"]).decode(errors="ignore")
             for line in out.splitlines():
                 if line.startswith("yes:"):
                     return line.split(":", 1)[1].strip()
         elif _OS == "Darwin":
             out = subprocess.check_output(
-                "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -I",
-                shell=True,
+                ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"]
             ).decode(errors="ignore")
             for line in out.splitlines():
                 if " SSID:" in line:
@@ -145,17 +144,16 @@ def scan_networks():
     networks = []
     try:
         if _OS == "Windows":
-            out = subprocess.check_output("netsh wlan show networks mode=bssid", shell=True).decode(errors="ignore")
+            out = subprocess.check_output(["netsh", "wlan", "show", "networks", "mode=bssid"]).decode(errors="ignore")
             networks = _parse_netsh_networks(out)
         elif _OS == "Linux":
-            out = subprocess.check_output("nmcli -t -f SSID,SIGNAL,SECURITY,BSSID dev wifi", shell=True).decode(
+            out = subprocess.check_output(["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY,BSSID", "dev", "wifi"]).decode(
                 errors="ignore"
             )
             networks = _parse_nmcli_networks(out)
         elif _OS == "Darwin":
             out = subprocess.check_output(
-                "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s",
-                shell=True,
+                ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-s"]
             ).decode(errors="ignore")
             networks = _parse_macos_airport(out)
     except Exception as e:
