@@ -122,6 +122,8 @@ def _apply_env_overrides(config: dict):
         config["traffic_retention_days"] = int(env["TRAFFIC_RETENTION_DAYS"])
     if env.get("PURGE_INTERVAL_HOURS"):
         config["purge_interval_hours"] = int(env["PURGE_INTERVAL_HOURS"])
+    if env.get("SIMULATION_MODE"):
+        config["simulation_mode"] = env["SIMULATION_MODE"].lower() == "true"
 
 
 # ─────────────────────────────────────────
