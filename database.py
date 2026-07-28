@@ -348,16 +348,27 @@ def execute_write_sync(query: str, params: tuple = (), timeout: float = 5.0) -> 
     return res_holder
 
 
+_local_storage = threading.local()
+
+
+def _get_read_conn() -> sqlite3.Connection:
+    if not hasattr(_local_storage, "conn"):
+        conn = sqlite3.connect(_db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        _local_storage.conn = conn
+    return _local_storage.conn
+
+
 def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     """
     Execute a read query in the calling thread.
+    Reuses a thread-local SQLite connection for performance.
     Thread-safe under SQLite WAL mode.
     OWASP A03: Parameterized queries only.
     """
-    conn = sqlite3.connect(_db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
     try:
+        conn = _get_read_conn()
         cur = conn.cursor()
         cur.execute(query, params)
         rows = cur.fetchall()
@@ -365,8 +376,6 @@ def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"DB read error: {e} | query: {query[:80]}")
         return []
-    finally:
-        conn.close()
 
 
 def record_audit(
