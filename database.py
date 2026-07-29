@@ -25,9 +25,46 @@ _db_write_queue = queue.Queue()
 _db_worker_thread: Optional[threading.Thread] = None
 _db_path = "nids.db"
 _shutdown_event = threading.Event()
-
-# Thread-local storage for read connections
 _thread_local = threading.local()
+
+
+def close_thread_local_connections() -> None:
+    """Close and clear thread-local read connection for the current thread."""
+    conn = getattr(_thread_local, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _thread_local.conn = None
+        _thread_local.db_path = None
+
+
+def get_read_connection() -> sqlite3.Connection:
+    """
+    Get or create a thread-local SQLite connection for read operations.
+    Thread-safe connection pooling for high-performance reads under WAL mode.
+    """
+    conn = getattr(_thread_local, "conn", None)
+    cached_path = getattr(_thread_local, "db_path", None)
+
+    if conn is not None and cached_path == _db_path:
+        try:
+            conn.execute("SELECT 1")
+            return conn
+        except Exception:
+            close_thread_local_connections()
+
+    close_thread_local_connections()
+
+    new_conn = sqlite3.connect(_db_path, timeout=10.0, isolation_level=None)
+    new_conn.row_factory = sqlite3.Row
+    new_conn.execute("PRAGMA journal_mode=WAL;")
+    new_conn.execute("PRAGMA query_only=ON;")
+
+    _thread_local.conn = new_conn
+    _thread_local.db_path = _db_path
+    return new_conn
 
 
 # ─── Schema Initialization ───────────────────────────────────────────────────
@@ -40,6 +77,7 @@ def init_db(db_path: str = "nids.db") -> None:
     """
     global _db_path
     _db_path = db_path
+    close_thread_local_connections()
 
     conn = sqlite3.connect(_db_path)
     try:
@@ -317,6 +355,7 @@ def stop_db_worker() -> None:
         _db_write_queue.put(None)
         _db_worker_thread.join(timeout=5.0)
         _db_worker_thread = None
+    close_thread_local_connections()
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────
@@ -353,25 +392,20 @@ def execute_write_sync(query: str, params: tuple = (), timeout: float = 5.0) -> 
 
 def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     """
-    Execute a read query in the calling thread.
+    Execute a read query in the calling thread using thread-local connection pooling.
     Thread-safe under SQLite WAL mode.
     OWASP A03: Parameterized queries only.
     """
-    # Use thread-local connection pooling for reads
-    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
-        _thread_local.conn = sqlite3.connect(_db_path)
-        _thread_local.conn.row_factory = sqlite3.Row
-        _thread_local.conn.execute("PRAGMA journal_mode=WAL;")
-
-    conn = _thread_local.conn
-
     try:
+        conn = get_read_connection()
         cur = conn.cursor()
         cur.execute(query, params)
         rows = cur.fetchall()
+        cur.close()
         return [dict(row) for row in rows]
     except Exception as e:
         logger.error(f"DB read error: {e} | query: {query[:80]}")
+        close_thread_local_connections()
         return []
 
 
