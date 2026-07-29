@@ -26,6 +26,9 @@ _db_worker_thread: Optional[threading.Thread] = None
 _db_path = "nids.db"
 _shutdown_event = threading.Event()
 
+# Thread-local storage for read connections
+_thread_local = threading.local()
+
 
 # ─── Schema Initialization ───────────────────────────────────────────────────
 
@@ -354,9 +357,14 @@ def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     Thread-safe under SQLite WAL mode.
     OWASP A03: Parameterized queries only.
     """
-    conn = sqlite3.connect(_db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
+    # Use thread-local connection pooling for reads
+    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
+        _thread_local.conn = sqlite3.connect(_db_path)
+        _thread_local.conn.row_factory = sqlite3.Row
+        _thread_local.conn.execute("PRAGMA journal_mode=WAL;")
+
+    conn = _thread_local.conn
+
     try:
         cur = conn.cursor()
         cur.execute(query, params)
@@ -365,8 +373,6 @@ def execute_read(query: str, params: tuple = ()) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"DB read error: {e} | query: {query[:80]}")
         return []
-    finally:
-        conn.close()
 
 
 def record_audit(

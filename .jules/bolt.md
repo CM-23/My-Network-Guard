@@ -1,0 +1,3 @@
+## 2025-03-09 - SQLite Thread-Local Connection Pooling
+**Learning:** In a single-writer/multi-reader application like this NIDS where SQLite operates in WAL mode, opening a new database connection for every single `execute_read` call introduces unnecessary overhead. WAL supports concurrency, but constantly spinning up connections causes connection latency and slight contention.
+**Action:** Use Python's `threading.local()` to maintain persistent read connections per thread for SQLite when WAL mode is active. This significantly speeds up high-frequency read operations across multiple threads while keeping the connection state isolated per thread.
