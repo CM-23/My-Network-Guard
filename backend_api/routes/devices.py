@@ -95,7 +95,7 @@ def list_devices():
         subnet = net.get("subnet", "")
         if subnet and "/" in subnet:
             prefix = subnet.split("/")[0].rsplit(".", 1)[0] + "."
-            conditions.append("last_known_ip LIKE ?")
+            conditions.append("(last_known_ip LIKE ? OR last_known_ip = '0.0.0.0' OR last_known_ip = '')")
             params.append(f"{prefix}%")
 
     if online_f in ("0", "1"):

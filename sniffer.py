@@ -393,6 +393,7 @@ def start_sniffer(packet_queue, interface=None, simulation_mode=False):
         if detected:
             if isinstance(detected, str):
                 interface = detected
+                _diagnostics["current_interface"] = interface
             else:
                 interface = getattr(detected, "name", str(detected))
                 desc = getattr(detected, "description", "")

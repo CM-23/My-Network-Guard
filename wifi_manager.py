@@ -38,13 +38,14 @@ def get_gateway_ip():
             blocks = re.split(r"\r?\n\r?\n", out)
             target_blocks = [b for b in blocks if local_ip in b] or blocks
             for block in target_blocks:
-                for line in block.splitlines():
+                lines = block.splitlines()
+                for i, line in enumerate(lines):
                     if "Default Gateway" in line:
-                        parts = line.split(":")
-                        if len(parts) > 1:
-                            ip = parts[-1].strip()
-                            if ip and _is_valid_ip(ip):
-                                return ip
+                        for j in range(i, min(i + 4, len(lines))):
+                            matches = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", lines[j])
+                            for m in matches:
+                                if _is_valid_ip(m) and m != "0.0.0.0":
+                                    return m
         else:
             out = subprocess.check_output("ip route show default", shell=True).decode(errors="ignore")
             # e.g. "default via 192.168.1.1 dev wlan0"

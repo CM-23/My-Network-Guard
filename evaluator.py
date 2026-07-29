@@ -224,39 +224,45 @@ def _evaluator_worker(packet_queue: queue.Queue) -> None:
                 logger.info(f"New device registered: MAC {src_mac} / IP {src_ip}")
 
             else:
-                # Update existing device record
-                if resolved_hostname:
-                    database.execute_write_async(
-                        """UPDATE devices SET last_known_ip = ?, last_seen = ?, hostname = ?,
-                                              vendor = ?, device_type = ?, operating_system = ?,
-                                              confidence_score = ?, is_online = 1
-                           WHERE mac_address = ?""",
-                        (
-                            src_ip,
-                            timestamp,
-                            resolved_hostname,
-                            vendor,
-                            fingerprint.device_type,
-                            fingerprint.operating_system,
-                            fingerprint.confidence,
-                            src_mac,
-                        ),
-                    )
+                # Update existing device record — do not overwrite known IP with 0.0.0.0
+                if src_ip and src_ip != "0.0.0.0":
+                    if resolved_hostname:
+                        database.execute_write_async(
+                            """UPDATE devices SET last_known_ip = ?, last_seen = ?, hostname = ?,
+                                                  vendor = ?, device_type = ?, operating_system = ?,
+                                                  confidence_score = ?, is_online = 1
+                               WHERE mac_address = ?""",
+                            (
+                                src_ip,
+                                timestamp,
+                                resolved_hostname,
+                                vendor,
+                                fingerprint.device_type,
+                                fingerprint.operating_system,
+                                fingerprint.confidence,
+                                src_mac,
+                            ),
+                        )
+                    else:
+                        database.execute_write_async(
+                            """UPDATE devices SET last_known_ip = ?, last_seen = ?, vendor = ?,
+                                                  device_type = ?, operating_system = ?,
+                                                  confidence_score = ?, is_online = 1
+                               WHERE mac_address = ?""",
+                            (
+                                src_ip,
+                                timestamp,
+                                vendor,
+                                fingerprint.device_type,
+                                fingerprint.operating_system,
+                                fingerprint.confidence,
+                                src_mac,
+                            ),
+                        )
                 else:
                     database.execute_write_async(
-                        """UPDATE devices SET last_known_ip = ?, last_seen = ?, vendor = ?,
-                                              device_type = ?, operating_system = ?,
-                                              confidence_score = ?, is_online = 1
-                           WHERE mac_address = ?""",
-                        (
-                            src_ip,
-                            timestamp,
-                            vendor,
-                            fingerprint.device_type,
-                            fingerprint.operating_system,
-                            fingerprint.confidence,
-                            src_mac,
-                        ),
+                        """UPDATE devices SET last_seen = ?, is_online = 1 WHERE mac_address = ?""",
+                        (timestamp, src_mac),
                     )
 
             # ── 2. Aggregated Traffic Logging ─────────────────────────────────
