@@ -39,6 +39,15 @@ def init_db(db_path: str = "nids.db") -> None:
     _db_path = db_path
 
     conn = sqlite3.connect(_db_path)
+
+    import os
+
+    if os.name != "nt":
+        try:
+            os.chmod(_db_path, 0o600)
+        except OSError:
+            pass
+
     try:
         # High-concurrency settings
         conn.execute("PRAGMA journal_mode=WAL;")
