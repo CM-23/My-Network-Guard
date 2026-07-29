@@ -134,6 +134,10 @@ def save_config(cfg: AppConfig, config_path: str = _CONFIG_FILE) -> None:
         data["telegram"] = {"chat_id": cfg.telegram.chat_id}
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+
+        if os.name != "nt":
+            os.chmod(config_path, 0o600)
+
         logger.debug(f"Configuration saved to {config_path}")
     except OSError as e:
         logger.error(f"Failed to save config: {e}")
