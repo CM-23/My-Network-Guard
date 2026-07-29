@@ -200,7 +200,7 @@ jobs:
           docker exec test-container python -c "
           import urllib.request, sys
           try:
-              r = urllib.request.urlopen('http://localhost:5000/api/health', timeout=5)
+              r = urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=5)
               print('Health check:', r.getcode())
               sys.exit(0 if r.getcode() == 200 else 1)
           except Exception as e:

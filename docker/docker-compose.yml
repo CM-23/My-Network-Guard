@@ -52,7 +52,7 @@ services:
       - ./config.json:/app/config.json:rw
 
     healthcheck:
-      test:     ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')"]
+      test:     ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health')"]
       interval: 30s
       timeout:  10s
       retries:  3
